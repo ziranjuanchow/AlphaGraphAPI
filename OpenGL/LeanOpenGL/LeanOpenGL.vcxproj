@@ -134,6 +134,7 @@
     <ClCompile Include="source\stb_image.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="source\camera.h" />
     <ClInclude Include="source\Shader.h" />
   </ItemGroup>
   <ItemGroup>
