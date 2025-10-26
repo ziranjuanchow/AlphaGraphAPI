@@ -490,6 +490,73 @@ uniform sampler2D ourTexture;
 ![1761467033624](image/note/1761467033624.png)
 
 
+### 坐标系 Coordinate Systems
+
+* 局部空间(Local Space，或者称为物体空间(Object Space))
+* 世界空间(World Space)
+* 观察空间(View Space，或者称为视觉空间(Eye Space))
+* 裁剪空间(Clip Space)
+* 屏幕空间(Screen Space)
+
+为了将坐标从一个坐标系变换到另一个坐标系，我们需要用到几个变换矩阵，最重要的几个分别是模型(Model)、观察(View)、投影(Projection)三个矩阵。我们的顶点坐标起始于局部空间(Local Space)，在这里它称为局部坐标(Local Coordinate)，它在之后会变为世界坐标(World Coordinate)，观察坐标(View Coordinate)，裁剪坐标(Clip Coordinate)，并最后以屏幕坐标(Screen Coordinate)的形式结束。下面的这张图展示了整个流程以及各个变换过程做了什么：
+
+![1761469740754](image/note/1761469740754.png)
+
+
+1. 局部坐标是对象相对于局部原点的坐标，也是物体起始的坐标。
+2. 下一步是将局部坐标变换为世界空间坐标，世界空间坐标是处于一个更大的空间范围的。这些坐标相对于世界的全局原点，它们会和其它物体一起相对于世界的原点进行摆放。
+3. 接下来我们将世界坐标变换为观察空间坐标，使得每个坐标都是从摄像机或者说观察者的角度进行观察的。
+4. 坐标到达观察空间之后，我们需要将其投影到裁剪坐标。裁剪坐标会被处理至-1.0到1.0的范围内，并判断哪些顶点将会出现在屏幕上。
+5. 最后，我们将裁剪坐标变换为屏幕坐标，我们将使用一个叫做视口变换(Viewport Transform)的过程。视口变换将位于-1.0到1.0范围的坐标变换到由glViewport函数所定义的坐标范围内。最后变换出来的坐标将会送到光栅器，将其转化为片段。
+
+
+观察矩阵(View Matrix)
+
+裁剪掉(Clipped)
+
+裁剪空间(Clip Space)
+
+裁剪体积(Clipping Volume)
+
+**观察箱** (Viewing Box)被称为平截头体(Frustum)
+
+投影(Projection)
+
+透视除法(Perspective Division)
+
+正射投影矩阵(Orthographic Projection Matrix)或一个透视投影矩阵(Perspective Projection Matrix)
+
+![1761481409125](image/note/1761481409125.png)
+
+glm::ortho(0.0f, 800.0f, 0.0f, 600.0f, 0.1f, 100.0f);
+
+![1761481423306](image/note/1761481423306.png)
+
+glm::mat4 proj = glm::perspective(glm::radians(45.0f), (float)width/(float)height, 0.1f, 100.0f);
+
+![1761481463334](image/note/1761481463334.png)
+
+fov视野(Field of View)
+
+![1761481499096](image/note/1761481499096.png)
+
+![1761481539650](image/note/1761481539650.png)
+
+
+OpenGL是一个右手坐标系(Right-handed System)
+
+![1761481595122](image/note/1761481595122.png)
+
+
+
+#### Z缓冲 Depth Buffer/ Z Buffer
+
+OpenGL存储它的所有深度信息于一个Z缓冲(Z-buffer)中，也被称为深度缓冲(Depth Buffer)。GLFW会自动为你生成这样一个缓冲（就像它也有一个颜色缓冲来存储输出图像的颜色）。深度值存储在每个片段里面（作为片段的**z**值），当片段想要输出它的颜色时，OpenGL会将它的深度值和z缓冲进行比较，如果当前的片段在其它片段之后，它将会被丢弃，否则将会覆盖。这个过程称为深度测试(Depth Testing)，它是由OpenGL自动完成的。
+
+
+```C++
+glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+```
 
 
 
