@@ -131,15 +131,23 @@
     <ClCompile Include="source\glad.c" />
     <ClCompile Include="source\main.cpp" />
     <ClCompile Include="source\Shader.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <Folder Include="shaders\" />
+    <ClCompile Include="source\stb_image.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\Shader.h" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="resources\textures\awesomeface.png" />
+    <Content Include="resources\textures\container.jpg" />
     <Content Include="resources\textures\wall.jpg" />
+    <Content Include="shaders\3.3.shader.vs" />
+    <Content Include="shaders\4.2.texture.vs" />
+    <Content Include="shaders\5.1.transform.vs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="shaders\3.3.shader.fs" />
+    <Compile Include="shaders\4.2.texture.fs" />
+    <Compile Include="shaders\5.1.transform.fs" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
