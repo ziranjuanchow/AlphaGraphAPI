@@ -141,16 +141,22 @@
     <Content Include="resources\textures\awesomeface.png" />
     <Content Include="resources\textures\container.jpg" />
     <Content Include="resources\textures\wall.jpg" />
+    <Content Include="shaders\3.1.light_cube.vs" />
+    <Content Include="shaders\3.1.materials.vs" />
     <Content Include="shaders\3.3.shader.vs" />
     <Content Include="shaders\4.2.texture.vs" />
     <Content Include="shaders\5.1.transform.vs" />
     <Content Include="shaders\6.3.coordinate_systems.vs" />
+    <Content Include="shaders\7.4.camera.vs" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="shaders\3.1.light_cube.fs" />
+    <Compile Include="shaders\3.1.materials.fs" />
     <Compile Include="shaders\3.3.shader.fs" />
     <Compile Include="shaders\4.2.texture.fs" />
     <Compile Include="shaders\5.1.transform.fs" />
     <Compile Include="shaders\6.3.coordinate_systems.fs" />
+    <Compile Include="shaders\7.4.camera.fs" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

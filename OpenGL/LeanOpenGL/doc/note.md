@@ -489,7 +489,6 @@ uniform sampler2D ourTexture;
 
 ![1761467033624](image/note/1761467033624.png)
 
-
 ### 坐标系 Coordinate Systems
 
 * 局部空间(Local Space，或者称为物体空间(Object Space))
@@ -502,13 +501,11 @@ uniform sampler2D ourTexture;
 
 ![1761469740754](image/note/1761469740754.png)
 
-
 1. 局部坐标是对象相对于局部原点的坐标，也是物体起始的坐标。
 2. 下一步是将局部坐标变换为世界空间坐标，世界空间坐标是处于一个更大的空间范围的。这些坐标相对于世界的全局原点，它们会和其它物体一起相对于世界的原点进行摆放。
 3. 接下来我们将世界坐标变换为观察空间坐标，使得每个坐标都是从摄像机或者说观察者的角度进行观察的。
 4. 坐标到达观察空间之后，我们需要将其投影到裁剪坐标。裁剪坐标会被处理至-1.0到1.0的范围内，并判断哪些顶点将会出现在屏幕上。
 5. 最后，我们将裁剪坐标变换为屏幕坐标，我们将使用一个叫做视口变换(Viewport Transform)的过程。视口变换将位于-1.0到1.0范围的坐标变换到由glViewport函数所定义的坐标范围内。最后变换出来的坐标将会送到光栅器，将其转化为片段。
-
 
 观察矩阵(View Matrix)
 
@@ -542,22 +539,17 @@ fov视野(Field of View)
 
 ![1761481539650](image/note/1761481539650.png)
 
-
 OpenGL是一个右手坐标系(Right-handed System)
 
 ![1761481595122](image/note/1761481595122.png)
-
-
 
 #### Z缓冲 Depth Buffer/ Z Buffer
 
 OpenGL存储它的所有深度信息于一个Z缓冲(Z-buffer)中，也被称为深度缓冲(Depth Buffer)。GLFW会自动为你生成这样一个缓冲（就像它也有一个颜色缓冲来存储输出图像的颜色）。深度值存储在每个片段里面（作为片段的**z**值），当片段想要输出它的颜色时，OpenGL会将它的深度值和z缓冲进行比较，如果当前的片段在其它片段之后，它将会被丢弃，否则将会覆盖。这个过程称为深度测试(Depth Testing)，它是由OpenGL自动完成的。
 
-
 ```C++
 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 ```
-
 
 ### Camera
 
@@ -570,7 +562,6 @@ OpenGL本身没有 **摄像机** (Camera)的概念，但我们可以通过把场
 ![1761483129645](image/note/1761483129645.png)
 
 其中**R**是右向量，**U**是上向量，**D**是方向向量**P**是摄像机位置向量。注意，位置向量是相反的，因为我们最终希望把世界平移到与我们自身移动的相反方向。把这个LookAt矩阵作为观察矩阵可以很高效地把所有世界坐标变换到刚刚定义的观察空间。LookAt矩阵就像它的名字表达的那样：它会创建一个看着(Look at)给定目标的观察矩阵。
-
 
 ```
 glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
@@ -585,7 +576,6 @@ view = glm::lookAt(glm::vec3(0.0f, 0.0f, 3.0f),
            glm::vec3(0.0f, 1.0f, 0.0f));
 
 ```
-
 
 ```C++
 void processInput(GLFWwindow *window)
@@ -603,7 +593,6 @@ void processInput(GLFWwindow *window)
 }
 ```
 
-
 #### 欧拉角
 
 ![1761483401929](image/note/1761483401929.png)
@@ -614,9 +603,77 @@ direction.y = sin(glm::radians(pitch));
 direction.z = cos(glm::radians(pitch)) * sin(glm::radians(yaw));
 ```
 
-
 ### Color
 
+### 基础光照
+
+#### 冯氏光照 Phong Lighting Model
+
+![1761753998213](image/note/1761753998213.png)
+
+* **环境光照(Ambient Lighting)：即使在黑暗的情况下，世界上通常也仍然有一些光亮（月亮、远处的光），所以物体几乎永远不会是完全黑暗的。为了模拟这个，我们会使用一个环境光照常量，它永远会给物体一些颜色。**
+* **漫反射光照(Diffuse Lighting)：模拟光源对物体的方向性影响(Directional Impact)。它是风氏光照模型中视觉上最显著的分量。物体的某一部分越是正对着光源，它就会越亮。**
+* **镜面光照(Specular Lighting)：模拟有光泽物体上面出现的亮点。镜面光照的颜色相比于物体的颜色会更倾向于光的颜色。**
+
+
+#### 漫反射光照
+
+![1761841246975](image/note/1761841246975.png)
+
+
+![1761841353365](image/note/1761841353365.png)
+
+![1761841379185](image/note/1761841379185.png)
+
+> 矩阵求逆是一项对于着色器开销很大的运算，因为它必须在场景中的每一个顶点上进行，所以应该尽可能地避免在着色器中进行求逆运算。以学习为目的的话这样做还好，但是对于一个高效的应用来说，你最好先在CPU上计算出法线矩阵，再通过uniform把它传递给着色器（就像模型矩阵一样）。
+
+
+#### 镜面高光(Specular Highlight)
+
+和漫反射光照一样，镜面光照也决定于光的方向向量和物体的法向量，但是它也决定于观察方向，例如玩家是从什么方向看向这个片段的。镜面光照决定于表面的反射特性。如果我们把物体表面设想为一面镜子，那么镜面光照最强的地方就是我们看到表面上反射光的地方。你可以在下图中看到效果：
+
+![1761841591784](image/note/1761841591784.png)
+
+
+```C++
+    // ambient
+    float ambientStrength = 0.1;
+    vec3 ambient = ambientStrength * lightColor;
+  
+    // diffuse 
+    vec3 norm = normalize(Normal);
+    vec3 lightDir = normalize(lightPos - FragPos);
+    float diff = max(dot(norm, lightDir), 0.0);
+    vec3 diffuse = diff * lightColor;
+  
+    // specular
+    float specularStrength = 0.5;
+    vec3 viewDir = normalize(viewPos - FragPos);
+    vec3 reflectDir = reflect(-lightDir, norm);  
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
+    vec3 specular = specularStrength * spec * lightColor;  
+      
+    vec3 result = (ambient + diffuse + specular) * objectColor;
+    FragColor = vec4(result, 1.0);
+```
+
+***上面这段代码主要看 diffuse和specular是怎么算的,主要是方法原理.***
+
+
+### 材质
+
+
+如你所见，我们为风氏光照模型的每个分量都定义一个颜色向量。ambient材质向量定义了在环境光照下这个表面反射的是什么颜色，通常与表面的颜色相同。diffuse材质向量定义了在漫反射光照下表面的颜色。漫反射颜色（和环境光照一样）也被设置为我们期望的物体颜色。specular材质向量设置的是表面上镜面高光的颜色（或者甚至可能反映一个特定表面的颜色）。最后，shininess影响镜面高光的散射/半径。
+
+![1761843137565](image/note/1761843137565.png)
+
+
+#### 光的属性
+
+
+
+
+123
 
 
 ## end
