@@ -146,6 +146,8 @@
     <Content Include="shaders\3.3.shader.vs" />
     <Content Include="shaders\4.2.texture.vs" />
     <Content Include="shaders\5.1.transform.vs" />
+    <Content Include="shaders\5.4.light_casters.vs" />
+    <Content Include="shaders\5.4.light_cube.vs" />
     <Content Include="shaders\6.3.coordinate_systems.vs" />
     <Content Include="shaders\7.4.camera.vs" />
   </ItemGroup>
@@ -155,6 +157,8 @@
     <Compile Include="shaders\3.3.shader.fs" />
     <Compile Include="shaders\4.2.texture.fs" />
     <Compile Include="shaders\5.1.transform.fs" />
+    <Compile Include="shaders\5.4.light_casters.fs" />
+    <Compile Include="shaders\5.4.light_cube.fs" />
     <Compile Include="shaders\6.3.coordinate_systems.fs" />
     <Compile Include="shaders\7.4.camera.fs" />
   </ItemGroup>

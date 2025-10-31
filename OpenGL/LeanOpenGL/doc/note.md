@@ -615,11 +615,9 @@ direction.z = cos(glm::radians(pitch)) * sin(glm::radians(yaw));
 * **漫反射光照(Diffuse Lighting)：模拟光源对物体的方向性影响(Directional Impact)。它是风氏光照模型中视觉上最显著的分量。物体的某一部分越是正对着光源，它就会越亮。**
 * **镜面光照(Specular Lighting)：模拟有光泽物体上面出现的亮点。镜面光照的颜色相比于物体的颜色会更倾向于光的颜色。**
 
-
 #### 漫反射光照
 
 ![1761841246975](image/note/1761841246975.png)
-
 
 ![1761841353365](image/note/1761841353365.png)
 
@@ -627,13 +625,11 @@ direction.z = cos(glm::radians(pitch)) * sin(glm::radians(yaw));
 
 > 矩阵求逆是一项对于着色器开销很大的运算，因为它必须在场景中的每一个顶点上进行，所以应该尽可能地避免在着色器中进行求逆运算。以学习为目的的话这样做还好，但是对于一个高效的应用来说，你最好先在CPU上计算出法线矩阵，再通过uniform把它传递给着色器（就像模型矩阵一样）。
 
-
 #### 镜面高光(Specular Highlight)
 
 和漫反射光照一样，镜面光照也决定于光的方向向量和物体的法向量，但是它也决定于观察方向，例如玩家是从什么方向看向这个片段的。镜面光照决定于表面的反射特性。如果我们把物体表面设想为一面镜子，那么镜面光照最强的地方就是我们看到表面上反射光的地方。你可以在下图中看到效果：
 
 ![1761841591784](image/note/1761841591784.png)
-
 
 ```C++
     // ambient
@@ -652,42 +648,177 @@ direction.z = cos(glm::radians(pitch)) * sin(glm::radians(yaw));
     vec3 reflectDir = reflect(-lightDir, norm);  
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
     vec3 specular = specularStrength * spec * lightColor;  
-      
+  
     vec3 result = (ambient + diffuse + specular) * objectColor;
     FragColor = vec4(result, 1.0);
 ```
 
 ***上面这段代码主要看 diffuse和specular是怎么算的,主要是方法原理.***
 
-
 ### 材质
-
 
 如你所见，我们为风氏光照模型的每个分量都定义一个颜色向量。ambient材质向量定义了在环境光照下这个表面反射的是什么颜色，通常与表面的颜色相同。diffuse材质向量定义了在漫反射光照下表面的颜色。漫反射颜色（和环境光照一样）也被设置为我们期望的物体颜色。specular材质向量设置的是表面上镜面高光的颜色（或者甚至可能反映一个特定表面的颜色）。最后，shininess影响镜面高光的散射/半径。
 
 ![1761843137565](image/note/1761843137565.png)
 
-
 #### 光的属性
 
-
 ### 光照贴图
-
 
 #### 漫反射贴图
 
 漫反射贴图(Diffuse Map)（在PBR之前3D艺术家通常都这么叫它），它是一个表现了物体所有的漫反射颜色的纹理图像。
 
-
 #### 镜面光贴图
-
 
 #### 采样镜面光贴图
 
-
 通过使用漫反射和镜面光贴图，我们可以给相对简单的物体添加大量的细节。我们甚至可以使用法线/凹凸贴图(Normal/Bump Map)或者反射贴图(Reflection Map)给物体添加更多的细节
 
-123
+### 投光物  Light casters
 
+将光 **投射** (Cast)到物体的光源叫做投光物(Light Caster)
+
+定向光(Directional Light)
+
+点光源(Point Light)
+
+聚光(Spotlight)
+
+#### 平行光
+
+![1761923565367](image/note/1761923565367.png)
+
+因为所有的光线都是平行的，所以物体与光源的相对位置是不重要的，因为对场景中每一个物体光的方向都是一致的。由于光的位置向量保持一致，场景中每个物体的光照计算将会是类似的。
+
+```glsl
+struct Light {
+    // vec3 position; // 使用定向光就不再需要了
+    vec3 direction;
+
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+```
+
+
+
+#### 点光源(Point Light)
+
+![1761924311598](image/note/1761924311598.png)
+
+##### 衰减(Attenuation)
+
+![1761924425680](image/note/1761924425680.png)
+
+
+在这里**d**代表了片段距光源的距离。接下来为了计算衰减值，我们定义3个（可配置的）项：常数项**K**c、一次项**K**l和二次项**K**q。
+
+* 常数项通常保持为1.0，它的主要作用是保证分母永远不会比1小，否则的话在某些距离上它反而会增加强度，这肯定不是我们想要的效果。
+* 一次项会与距离值相乘，以线性的方式减少强度。
+* 二次项会与距离的平方相乘，让光源以二次递减的方式减少强度。二次项在距离比较小的时候影响会比一次项小很多，但当距离值比较大的时候它就会比一次项更大了。
+
+![1761924511171](image/note/1761924511171.png)
+
+![1761924631391](image/note/1761924631391.png)
+
+##### 实现衰减
+
+```
+struct Light {
+    vec3 position;  
+
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+
+    float constant;
+    float linear;
+    float quadratic;
+};
+```
+
+```
+lightingShader.setFloat("light.constant",  1.0f);
+lightingShader.setFloat("light.linear",    0.09f);
+lightingShader.setFloat("light.quadratic", 0.032f);
+```
+
+#### 聚光(Spotlight)
+
+OpenGL中聚光是用一个世界空间位置、一个方向和一个切光角(Cutoff Angle)来表示的，切光角指定了聚光的半径（译注：是圆锥的半径不是距光源距离那个半径）。对于每个片段，我们会计算片段是否位于聚光的切光方向之间（也就是在锥形内），如果是的话，我们就会相应地照亮片段。下面这张图会让你明白聚光是如何工作的：
+
+![1761924785330](image/note/1761924785330.png)
+
+
+* `LightDir`：从片段指向光源的向量。
+* `SpotDir`：聚光所指向的方向。
+* `Phi`ϕ：指定了聚光半径的切光角。落在这个角度之外的物体都不会被这个聚光所照亮。
+* `Theta`θ：LightDir向量和SpotDir向量之间的夹角。在聚光内部的话**θ**值应该比**ϕ**值小。
+
+##### 手电筒(Flashlight)
+
+手电筒(Flashlight)是一个位于观察者位置的聚光，通常它都会瞄准玩家视角的正前方。基本上说，手电筒就是普通的聚光，但它的位置和方向会随着玩家的位置和朝向不断更新。
+
+所以，在片段着色器中我们需要的值有聚光的位置向量（来计算光的方向向量）、聚光的方向向量和一个切光角。我们可以将它们储存在Light结构体中：
+
+```
+struct Light {
+    vec3  position;
+    vec3  direction;
+    float cutOff;
+    ...
+};
+```
+
+接下来我们将合适的值传到着色器中：
+
+```
+lightingShader.setVec3("light.position",  camera.Position);
+lightingShader.setVec3("light.direction", camera.Front);
+lightingShader.setFloat("light.cutOff",   glm::cos(glm::radians(12.5f)));
+```
+
+> 你可以看到，我们并没有给切光角设置一个角度值，反而是用角度值计算了一个余弦值，将余弦结果传递到片段着色器中。这样做的原因是在片段着色器中，我们会计算 `LightDir`和 `SpotDir`向量的点积，这个点积返回的将是一个余弦值而不是角度值，所以我们不能直接使用角度值和余弦值进行比较。为了获取角度值我们需要计算点积结果的反余弦，这是一个开销很大的计算。所以为了节约一点性能开销，我们将会计算切光角对应的余弦值，并将它的结果传入片段着色器中。由于这两个角度现在都由余弦角来表示了，我们可以直接对它们进行比较而不用进行任何开销高昂的计算。
+
+> 接下来就是计算**θ**值，并将它和切光角**ϕ**对比，来决定是否在聚光的内部：
+
+```
+float theta = dot(lightDir, normalize(-light.direction));
+
+if(theta > light.cutOff) 
+{     
+  // 执行光照计算
+}
+else  // 否则，使用环境光，让场景在聚光之外时不至于完全黑暗
+  color = vec4(light.ambient * vec3(texture(material.diffuse, TexCoords)), 1.0);
+```
+
+我们首先计算了lightDir和取反的direction向量（取反的是因为我们想让向量指向光源而不是从光源出发）之间的点积。记住要对所有的相关向量标准化。
+
+切光角(Cutoff Angle)来表示的，切光角指定了聚光的半径
+
+![1761928768765](image/note/1761928768765.png)
+
+
+
+#### 平滑/软化边缘
+
+为了创建一种看起来边缘平滑的聚光，我们需要模拟聚光有一个内圆锥(Inner Cone)和一个外圆锥(Outer Cone)。我们可以将内圆锥设置为上一部分中的那个圆锥，但我们也需要一个外圆锥，来让光从内圆锥逐渐减暗，直到外圆锥的边界
+
+为了创建一个外圆锥，我们只需要再定义一个余弦值来代表聚光方向向量和外圆锥向量（等于它的半径）的夹角。然后，如果一个片段处于内外圆锥之间，将会给它计算出一个0.0到1.0之间的强度值。如果片段在内圆锥之内，它的强度就是1.0，如果在外圆锥之外强度值就是0.0。
+
+![1761928540459](image/note/1761928540459.png)
+
+
+这里**ϵ**(Epsilon)是内（**ϕ**）和外圆锥（**γ**）之间的余弦值差（**ϵ**=**ϕ**−**γ**）。最终的**I**值就是在当前片段聚光的强度。
+
+很难去表现这个公式是怎么工作的，所以我们用一些实例值来看看：
+
+![1761926387239](image/note/1761926387239.png)
+
+
+123
 
 ## end
