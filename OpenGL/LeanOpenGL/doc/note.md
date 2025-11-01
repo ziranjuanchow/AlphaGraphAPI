@@ -130,6 +130,8 @@ glEnableVertexAttribArray(0);
 * 第五个参数叫做步长(Stride)，它告诉我们在连续的顶点属性组之间的间隔。由于下个组位置数据在3个 `float`之后，我们把步长设置为 `3 * sizeof(float)`。要注意的是由于我们知道这个数组是紧密排列的（在两个顶点属性之间没有空隙）我们也可以设置为0来让OpenGL决定具体步长是多少（只有当数值是紧密排列时才可用）。一旦我们有更多的顶点属性，我们就必须更小心地定义每个顶点属性之间的间隔，我们在后面会看到更多的例子（译注: 这个参数的意思简单说就是从这个属性第二次出现的地方到整个数组0位置之间有多少字节）。
 * 最后一个参数的类型是 `void*`，所以需要我们进行这个奇怪的强制类型转换。它表示位置数据在缓冲中起始位置的偏移量(Offset)。由于位置数据在数组的开头，所以这里是0。我们会在后面详细解释这个参数。
 
+VBO（Vertex Buffer Object，顶点缓冲对象）
+
 > 每个顶点属性从一个VBO管理的内存中获得它的数据，而具体是从哪个VBO（程序中可以有多个VBO）获取则是通过在调用glVertexAttribPointer时绑定到GL_ARRAY_BUFFER的VBO决定的。由于在调用glVertexAttribPointer之前绑定的是先前定义的VBO对象，顶点属性 `0`现在会链接到它的顶点数据。
 
 ```C++
@@ -702,8 +704,6 @@ struct Light {
 };
 ```
 
-
-
 #### 点光源(Point Light)
 
 ![1761924311598](image/note/1761924311598.png)
@@ -711,7 +711,6 @@ struct Light {
 ##### 衰减(Attenuation)
 
 ![1761924425680](image/note/1761924425680.png)
-
 
 在这里**d**代表了片段距光源的距离。接下来为了计算衰减值，我们定义3个（可配置的）项：常数项**K**c、一次项**K**l和二次项**K**q。
 
@@ -751,7 +750,6 @@ OpenGL中聚光是用一个世界空间位置、一个方向和一个切光角(C
 
 ![1761924785330](image/note/1761924785330.png)
 
-
 * `LightDir`：从片段指向光源的向量。
 * `SpotDir`：聚光所指向的方向。
 * `Phi`ϕ：指定了聚光半径的切光角。落在这个角度之外的物体都不会被这个聚光所照亮。
@@ -788,7 +786,7 @@ lightingShader.setFloat("light.cutOff",   glm::cos(glm::radians(12.5f)));
 float theta = dot(lightDir, normalize(-light.direction));
 
 if(theta > light.cutOff) 
-{     
+{   
   // 执行光照计算
 }
 else  // 否则，使用环境光，让场景在聚光之外时不至于完全黑暗
@@ -801,8 +799,6 @@ else  // 否则，使用环境光，让场景在聚光之外时不至于完全�
 
 ![1761928768765](image/note/1761928768765.png)
 
-
-
 #### 平滑/软化边缘
 
 为了创建一种看起来边缘平滑的聚光，我们需要模拟聚光有一个内圆锥(Inner Cone)和一个外圆锥(Outer Cone)。我们可以将内圆锥设置为上一部分中的那个圆锥，但我们也需要一个外圆锥，来让光从内圆锥逐渐减暗，直到外圆锥的边界
@@ -811,13 +807,267 @@ else  // 否则，使用环境光，让场景在聚光之外时不至于完全�
 
 ![1761928540459](image/note/1761928540459.png)
 
-
 这里**ϵ**(Epsilon)是内（**ϕ**）和外圆锥（**γ**）之间的余弦值差（**ϵ**=**ϕ**−**γ**）。最终的**I**值就是在当前片段聚光的强度。
 
 很难去表现这个公式是怎么工作的，所以我们用一些实例值来看看：
 
 ![1761926387239](image/note/1761926387239.png)
 
+### 多光源
+
+## 模型
+
+### 模型加载库
+
+Assimp(Open Asset Import Library))
+
+当使用Assimp导入一个模型的时候，它通常会将整个模型加载进一个 **场景** (Scene)对象，它会包含导入的模型/场景中的所有数据。Assimp会将场景载入为一系列的节点(Node)，每个节点包含了场景对象中所储存数据的索引，每个节点都可以有任意数量的子节点。Assimp数据结构的（简化）模型如下：
+
+![1761930734075](image/note/1761930734075.png)
+
+* 和材质和网格(Mesh)一样，所有的场景/模型数据都包含在Scene对象中。Scene对象也包含了场景根节点的引用。
+* 场景的Root node（根节点）可能包含子节点（和其它的节点一样），它会有一系列指向场景对象中mMeshes数组中储存的网格数据的索引。Scene下的mMeshes数组储存了真正的Mesh对象，节点中的mMeshes数组保存的只是场景中网格数组的索引。
+* 一个Mesh对象本身包含了渲染所需要的所有相关数据，像是顶点位置、法向量、纹理坐标、面(Face)和物体的材质。
+* 一个网格包含了多个面。Face代表的是物体的渲染图元(Primitive)（三角形、方形、点）。一个面包含了组成图元的顶点的索引。由于顶点和索引是分开的，使用一个索引缓冲来渲染是非常简单的（见[你好，三角形](https://learnopengl-cn.github.io/01%20Getting%20started/04%20Hello%20Triangle/)）。
+* 最后，一个网格也包含了一个Material对象，它包含了一些函数能让我们获取物体的材质属性，比如说颜色和纹理贴图（比如漫反射和镜面光贴图）。
+
+所以，我们需要做的第一件事是将一个物体加载到Scene对象中，遍历节点，获取对应的Mesh对象（我们需要递归搜索每个节点的子节点），并处理每个Mesh对象来获取顶点数据、索引以及它的材质属性。最终的结果是一系列的网格数据，我们会将它们包含在一个 `Model`对象中。
+
+> **网格**
+>
+> 当使用建模工具对物体建模的时候，艺术家通常不会用单个形状创建出整个模型。通常每个模型都由几个子模型/形状组合而成。组合模型的每个单独的形状就叫做一个网格(Mesh)。比如说有一个人形的角色：艺术家通常会将头部、四肢、衣服、武器建模为分开的组件，并将这些网格组合而成的结果表现为最终的模型。一个网格是我们在OpenGL中绘制物体所需的最小单位（顶点数据、索引和材质属性）。一个模型（通常）会包括多个网格。
+
+#### 导入模型
+
+Assimp很棒的一点在于，它抽象掉了加载不同文件格式的所有技术细节，只需要一行代码就能完成所有的工作：
+
+```
+Assimp::Importer importer;
+const aiScene *scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_FlipUVs);
+```
+
+我们首先声明了Assimp命名空间内的一个Importer，之后调用了它的ReadFile函数。这个函数需要一个文件路径，它的第二个参数是一些后期处理(Post-processing)的选项。除了加载文件之外，Assimp允许我们设定一些选项来强制它对导入的数据做一些额外的计算或操作。通过设定aiProcess_Triangulate，我们告诉Assimp，如果模型不是（全部）由三角形组成，它需要将模型所有的图元形状变换为三角形。aiProcess_FlipUVs将在处理的时候翻转y轴的纹理坐标（你可能还记得我们在[纹理](https://learnopengl-cn.github.io/01%20Getting%20started/06%20Textures/)教程中说过，在OpenGL中大部分的图像的y轴都是反的，所以这个后期处理选项将会修复这个）。其它一些比较有用的选项有：
+
+* aiProcess_GenNormals：如果模型不包含法向量的话，就为每个顶点创建法线。
+* aiProcess_SplitLargeMeshes：将比较大的网格分割成更小的子网格，如果你的渲染有最大顶点数限制，只能渲染较小的网格，那么它会非常有用。
+* aiProcess_OptimizeMeshes：和上个选项相反，它会将多个小网格拼接为一个大的网格，减少绘制调用从而进行优化。
+
+Assimp提供了很多有用的后期处理指令，你可以在[这里](http://assimp.sourceforge.net/lib_html/postprocess_8h.html)找到全部的指令。实际上使用Assimp加载模型是非常容易的（你也可以看到）。困难的是之后使用返回的场景对象将加载的数据转换到一个Mesh对象的数组。
+
+完整的loadModel函数将会是这样的：
+
+```C++
+void loadModel(string path)
+{
+    Assimp::Importer import;
+    const aiScene *scene = import.ReadFile(path, aiProcess_Triangulate | aiProcess_FlipUVs);  
+
+    if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) 
+    {
+        cout << "ERROR::ASSIMP::" << import.GetErrorString() << endl;
+        return;
+    }
+    directory = path.substr(0, path.find_last_of('/'));
+
+    processNode(scene->mRootNode, scene);
+}
+```
+
+如果什么错误都没有发生，我们希望处理场景中的所有节点，所以我们将第一个节点（根节点）传入了递归的processNode函数。因为每个节点（可能）包含有多个子节点，我们希望首先处理参数中的节点，再继续处理该节点所有的子节点，以此类推。这正符合一个递归结构，所以我们将定义一个递归函数。递归函数在做一些处理之后，使用不同的参数递归调用这个函数自身，直到某个条件被满足停止递归。在我们的例子中退出条件(Exit Condition)是所有的节点都被处理完毕。
+
+你可能还记得Assimp的结构中，每个节点包含了一系列的网格索引，每个索引指向场景对象中的那个特定网格。我们接下来就想去获取这些网格索引，获取每个网格，处理每个网格，接着对每个节点的子节点重复这一过程。processNode函数的内容如下：
+
+```C++
+void processNode(aiNode *node, const aiScene *scene)
+{
+    // 处理节点所有的网格（如果有的话）
+    for(unsigned int i = 0; i < node->mNumMeshes; i++)
+    {
+        aiMesh *mesh = scene->mMeshes[node->mMeshes[i]]; 
+        meshes.push_back(processMesh(mesh, scene));     
+    }
+    // 接下来对它的子节点重复这一过程
+    for(unsigned int i = 0; i < node->mNumChildren; i++)
+    {
+        processNode(node->mChildren[i], scene);
+    }
+}
+```
+
+我们首先检查每个节点的网格索引，并索引场景的mMeshes数组来获取对应的网格。返回的网格将会传递到processMesh函数中，它会返回一个Mesh对象，我们可以将它存储在meshes列表/vector。
+
+所有网格都被处理之后，我们会遍历节点的所有子节点，并对它们调用相同的processMesh函数。当一个节点不再有任何子节点之后，这个函数将会停止执行。
+
+> 认真的读者可能会发现，我们可以基本上忘掉处理任何的节点，只需要遍历场景对象的所有网格，就不需要为了索引做这一堆复杂的东西了。我们仍这么做的原因是，使用节点的最初想法是将网格之间定义一个父子关系。通过这样递归地遍历这层关系，我们就能将某个网格定义为另一个网格的父网格了。
+> 这个系统的一个使用案例是，当你想位移一个汽车的网格时，你可以保证它的所有子网格（比如引擎网格、方向盘网格、轮胎网格）都会随着一起位移。这样的系统能够用父子关系很容易地创建出来。
+>
+> 然而，现在我们并没有使用这样一种系统，但如果你想对你的网格数据有更多的控制，通常都是建议使用这一种方法的。这种类节点的关系毕竟是由创建了这个模型的艺术家所定义。
+
+##### 从Assimp到网格
+
+将一个 `aiMesh`对象转化为我们自己的网格对象不是那么困难。我们要做的只是访问网格的相关属性并将它们储存到我们自己的对象中。processMesh函数的大体结构如下：
+
+```C++
+Mesh processMesh(aiMesh *mesh, const aiScene *scene)
+{
+    vector<Vertex> vertices;
+    vector<unsigned int> indices;
+    vector<Texture> textures;
+
+    for(unsigned int i = 0; i < mesh->mNumVertices; i++)
+    {
+        Vertex vertex;
+        // 处理顶点位置、法线和纹理坐标
+        ...
+        vertices.push_back(vertex);
+    }
+    // 处理索引
+    ...
+    // 处理材质
+    if(mesh->mMaterialIndex >= 0)
+    {
+        ...
+    }
+
+    return Mesh(vertices, indices, textures);
+}
+```
+
+处理网格的过程主要有三部分：获取所有的顶点数据，获取它们的网格索引，并获取相关的材质数据。处理后的数据将会储存在三个vector当中，我们会利用它们构建一个Mesh对象，并返回它到函数的调用者那里。
+
+获取顶点数据非常简单，我们定义了一个Vertex结构体，我们将在每个迭代之后将它加到vertices数组中。我们会遍历网格中的所有顶点（使用 `mesh->mNumVertices`来获取）。在每个迭代中，我们希望使用所有的相关数据填充这个结构体。顶点的位置是这样处理的：
+
+```C++
+glm::vec3 vector; 
+vector.x = mesh->mVertices[i].x;
+vector.y = mesh->mVertices[i].y;
+vector.z = mesh->mVertices[i].z; 
+vertex.Position = vector;
+```
+
+纹理坐标的处理也大体相似，但Assimp允许一个模型在一个顶点上有最多8个不同的纹理坐标，我们不会用到那么多，我们只关心第一组纹理坐标。我们同样也想检查网格是否真的包含了纹理坐标（可能并不会一直如此）
+
+```C++
+if(mesh->mTextureCoords[0]) // 网格是否有纹理坐标？
+{
+    glm::vec2 vec;
+    vec.x = mesh->mTextureCoords[0][i].x; 
+    vec.y = mesh->mTextureCoords[0][i].y;
+    vertex.TexCoords = vec;
+}
+else
+    vertex.TexCoords = glm::vec2(0.0f, 0.0f);
+```
+
+vertex结构体现在已经填充好了需要的顶点属性，我们会在迭代的最后将它压入vertices这个vector的尾部。这个过程会对每个网格的顶点都重复一遍。
+
+##### 索引
+
+Assimp的接口定义了每个网格都有一个面(Face)数组，每个面代表了一个图元，在我们的例子中（由于使用了aiProcess_Triangulate选项）它总是三角形。一个面包含了多个索引，它们定义了在每个图元中，我们应该绘制哪个顶点，并以什么顺序绘制，所以如果我们遍历了所有的面，并储存了面的索引到indices这个vector中就可以了。
+
+```C++
+for(unsigned int i = 0; i < mesh->mNumFaces; i++)
+{
+    aiFace face = mesh->mFaces[i];
+    for(unsigned int j = 0; j < face.mNumIndices; j++)
+        indices.push_back(face.mIndices[j]);
+}
+```
+
+所有的外部循环都结束了，我们现在有了一系列的顶点和索引数据，它们可以用来通过glDrawElements函数来绘制网格。然而，为了结束这个话题，并且对网格提供一些细节，我们还需要处理网格的材质。
+
+##### 材质
+
+和节点一样，一个网格只包含了一个指向材质对象的索引。如果想要获取网格真正的材质，我们还需要索引场景的mMaterials数组。网格材质索引位于它的mMaterialIndex属性中，我们同样可以用它来检测一个网格是否包含有材质：
+
+```C++
+if(mesh->mMaterialIndex >= 0)
+{
+    aiMaterial *material = scene->mMaterials[mesh->mMaterialIndex];
+    vector<Texture> diffuseMaps = loadMaterialTextures(material, 
+                                        aiTextureType_DIFFUSE, "texture_diffuse");
+    textures.insert(textures.end(), diffuseMaps.begin(), diffuseMaps.end());
+    vector<Texture> specularMaps = loadMaterialTextures(material, 
+                                        aiTextureType_SPECULAR, "texture_specular");
+    textures.insert(textures.end(), specularMaps.begin(), specularMaps.end());
+}
+```
+
+我们首先从场景的mMaterials数组中获取 `aiMaterial`对象。接下来我们希望加载网格的漫反射和/或镜面光贴图。一个材质对象的内部对每种纹理类型都存储了一个纹理位置数组。不同的纹理类型都以 `aiTextureType_`为前缀。我们使用一个叫做loadMaterialTextures的工具函数来从材质中获取纹理。这个函数将会返回一个Texture结构体的vector，我们将在模型的textures vector的尾部之后存储它。
+
+loadMaterialTextures函数遍历了给定纹理类型的所有纹理位置，获取了纹理的文件位置，并加载并和生成了纹理，将信息储存在了一个Vertex结构体中。它看起来会像这样：
+
+```C++
+vector<Texture> loadMaterialTextures(aiMaterial *mat, aiTextureType type, string typeName)
+{
+    vector<Texture> textures;
+    for(unsigned int i = 0; i < mat->GetTextureCount(type); i++)
+    {
+        aiString str;
+        mat->GetTexture(type, i, &str);
+        Texture texture;
+        texture.id = TextureFromFile(str.C_Str(), directory);
+        texture.type = typeName;
+        texture.path = str;
+        textures.push_back(texture);
+    }
+    return textures;
+}
+```
+
+我们首先通过GetTextureCount函数检查储存在材质中纹理的数量，这个函数需要一个纹理类型。我们会使用GetTexture获取每个纹理的文件位置，它会将结果储存在一个 `aiString`中。我们接下来使用另外一个叫做TextureFromFile的工具函数，它将会（用 `stb_image.h`）加载一个纹理并返回该纹理的ID。如果你不确定这样的代码是如何写出来的话，可以查看最后的完整代码。
+
+> 注意，我们假设了模型文件中纹理文件的路径是相对于模型文件的本地(Local)路径，比如说与模型文件处于同一目录下。我们可以将纹理位置字符串拼接到之前（在loadModel中）获取的目录字符串上，来获取完整的纹理路径（这也是为什么GetTexture函数也需要一个目录字符串）。
+>
+> 在网络上找到的某些模型会对纹理位置使用绝对(Absolute)路径，这就不能在每台机器上都工作了。在这种情况下，你可能会需要手动修改这个文件，来让它对纹理使用本地路径（如果可能的话）。
+
+#### 优化-cache
+
+将所有加载过的纹理全局储存，每当我们想加载一个纹理的时候，首先去检查它有没有被加载过。如果有的话，我们会直接使用那个纹理，并跳过整个加载流程，来为我们省下很多处理能力。为了能够比较纹理，我们还需要储存它们的路径：
+
+```C++
+struct Texture {
+    unsigned int id;
+    string type;
+    aiString path;  // 我们储存纹理的路径用于与其它纹理进行比较
+};
+
+vector<Texture> textures_loaded;
+```
+
+之后，在loadMaterialTextures函数中，我们希望将纹理的路径与储存在textures_loaded这个vector中的所有纹理进行比较，看看当前纹理的路径是否与其中的一个相同。如果是的话，则跳过纹理加载/生成的部分，直接使用定位到的纹理结构体为网格的纹理。更新后的函数如下：
+
+```C++
+vector<Texture> loadMaterialTextures(aiMaterial *mat, aiTextureType type, string typeName)
+{
+    vector<Texture> textures;
+    for(unsigned int i = 0; i < mat->GetTextureCount(type); i++)
+    {
+        aiString str;
+        mat->GetTexture(type, i, &str);
+        bool skip = false;
+        for(unsigned int j = 0; j < textures_loaded.size(); j++)
+        {
+            if(std::strcmp(textures_loaded[j].path.data(), str.C_Str()) == 0)
+            {
+                textures.push_back(textures_loaded[j]);
+                skip = true; 
+                break;
+            }
+        }
+        if(!skip)
+        {   // 如果纹理还没有被加载，则加载它
+            Texture texture;
+            texture.id = TextureFromFile(str.C_Str(), directory);
+            texture.type = typeName;
+            texture.path = str.C_Str();
+            textures.push_back(texture);
+            textures_loaded.push_back(texture); // 添加到已加载的纹理中
+        }
+    }
+    return textures;
+}
+```
 
 123
 
