@@ -884,7 +884,7 @@ void processNode(aiNode *node, const aiScene *scene)
     for(unsigned int i = 0; i < node->mNumMeshes; i++)
     {
         aiMesh *mesh = scene->mMeshes[node->mMeshes[i]]; 
-        meshes.push_back(processMesh(mesh, scene));     
+        meshes.push_back(processMesh(mesh, scene));   
     }
     // 接下来对它的子节点重复这一过程
     for(unsigned int i = 0; i < node->mNumChildren; i++)
@@ -1068,6 +1068,247 @@ vector<Texture> loadMaterialTextures(aiMaterial *mat, aiTextureType type, string
     return textures;
 }
 ```
+
+## 深度测试
+
+深度缓冲（或z缓冲(z-buffer)）中的深度值(Depth Value)
+
+深度缓冲就像颜色缓冲(Color Buffer)（储存所有的片段颜色：视觉输出）一样，在每个片段中储存了信息，并且（通常）和颜色缓冲有着一样的宽度和高度。深度缓冲是由窗口系统自动创建的，它会以16、24或32位float的形式储存它的深度值。在大部分的系统中，深度缓冲的精度都是24位的。
+
+当深度测试(Depth Testing)被启用的时候，OpenGL会将一个片段的深度值与深度缓冲的内容进行对比。OpenGL会执行一个深度测试，如果这个测试通过了的话，深度缓冲将会更新为新的深度值。如果深度测试失败了，片段将会被丢弃。
+
+深度缓冲是在片段着色器运行之后（以及模板测试(Stencil Testing)运行之后，我们将在[下一节](https://learnopengl-cn.github.io/04%20Advanced%20OpenGL/02%20Stencil%20testing/)中讨论）在屏幕空间中运行的。屏幕空间坐标与通过OpenGL的glViewport所定义的视口密切相关，并且可以直接使用GLSL内建变量gl_FragCoord从片段着色器中直接访问。gl_FragCoord的x和y分量代表了片段的屏幕空间坐标（其中(0, 0)位于左下角）。
+
+gl_FragCoord中也包含了一个z分量，它包含了片段真正的深度值。z值就是需要与深度缓冲内容所对比的那个值。
+
+深度缓冲是在片段着色器运行之后（以及模板测试(Stencil Testing)运行之后，我们将在[下一节](https://learnopengl-cn.github.io/04%20Advanced%20OpenGL/02%20Stencil%20testing/)中讨论）在屏幕空间中运行的。屏幕空间坐标与通过OpenGL的glViewport所定义的视口密切相关，并且可以直接使用GLSL内建变量gl_FragCoord从片段着色器中直接访问。gl_FragCoord的x和y分量代表了片段的屏幕空间坐标（其中(0, 0)位于左下角）。
+
+gl_FragCoord中也包含了一个z分量，它包含了片段真正的深度值。z值就是需要与深度缓冲内容所对比的那个值。
+
+> 现在大部分的GPU都提供一个叫做提前深度测试(Early Depth Testing)的硬件特性。提前深度测试允许深度测试在片段着色器之前运行。只要我们清楚一个片段永远不会是可见的（它在其他物体之后），我们就能提前丢弃这个片段。
+
+> 片段着色器通常开销都是很大的，所以我们应该尽可能避免运行它们。当使用提前深度测试时，片段着色器的一个限制是你不能写入片段的深度值。如果一个片段着色器对它的深度值进行了写入，提前深度测试是不可能的。OpenGL不能提前知道深度值。
+
+可以想象，在某些情况下你会需要对所有片段都执行深度测试并丢弃相应的片段，但**不**希望更新深度缓冲。基本上来说，你在使用一个只读的(Read-only)深度缓冲。OpenGL允许我们禁用深度缓冲的写入，只需要设置它的深度掩码(Depth Mask)设置为 `GL_FALSE`就可以了：
+
+```
+glEnable(GL_DEPTH_TEST); // 必须开启才行
+glDepthMask(GL_FALSE);
+```
+
+#### 深度测试函数
+
+```
+glDepthFunc(GL_LESS);
+```
+
+| 函数        | 描述                                         |
+| ----------- | -------------------------------------------- |
+| GL_ALWAYS   | 永远通过深度测试                             |
+| GL_NEVER    | 永远不通过深度测试                           |
+| GL_LESS     | 在片段深度值小于缓冲的深度值时通过测试       |
+| GL_EQUAL    | 在片段深度值等于缓冲区的深度值时通过测试     |
+| GL_LEQUAL   | 在片段深度值小于等于缓冲区的深度值时通过测试 |
+| GL_GREATER  | 在片段深度值大于缓冲区的深度值时通过测试     |
+| GL_NOTEQUAL | 在片段深度值不等于缓冲区的深度值时通过测试   |
+| GL_GEQUAL   | 在片段深度值大于等于缓冲区的深度值时通过测试 |
+
+默认情况下使用的深度函数是GL_LESS，它将会丢弃深度值大于等于当前深度缓冲值的所有片段。
+
+#### 深度值精度
+
+观察空间的z值可能是投影平截头体的 **近平面** (Near)和 **远平面** (Far)之间的任何值。
+
+![1762003556411](image/note/1762003556411.png)
+
+这里的**n**e**a**r和**f**a**r**值是我们之前提供给投影矩阵设置可视平截头体的（见[坐标系统](https://learnopengl-cn.github.io/01%20Getting%20started/08%20Coordinate%20Systems/)）那个 *near* 和 *far* 值。这个方程需要平截头体中的一个z值，并将它变换到了[0, 1]的范围中。z值和对应的深度值之间的关系可以在下图中看到：
+
+![1762003581982](image/note/1762003581982.png)
+
+> 注意所有的方程都会将非常近的物体的深度值设置为接近0.0的值，而当物体非常接近远平面的时候，它的深度值会非常接近1.0。
+
+然而，在实践中是几乎永远不会使用这样的线性深度缓冲(Linear Depth Buffer)的。要想有正确的投影性质，需要使用一个非线性的深度方程，它是与 1/z 成正比的。它做的就是在z值很小的时候提供非常高的精度，而在z值很远的时候提供更少的精度。花时间想想这个：我们真的需要对1000单位远的深度值和只有1单位远的充满细节的物体使用相同的精度吗？线性方程并不会考虑这一点。
+
+由于非线性方程与 1/z 成正比，在1.0和2.0之间的z值将会变换至1.0到0.5之间的深度值，这就是一个float提供给我们的一半精度了，这在z值很小的情况下提供了非常大的精度。在50.0和100.0之间的z值将会只占2%的float精度，这正是我们所需要的。这样的一个考虑了远近距离的方程是这样的：
+
+![1762003692448](image/note/1762003692448.png)
+
+![1762003720095](image/note/1762003720095.png)
+
+#### 深度缓冲的可视化
+
+片段着色器中，内建gl_FragCoord向量的z值包含了那个特定片段的深度值。
+
+![1762003838809](image/note/1762003838809.png)
+
+需要转换成[-1,1],然后方程2求反:
+
+```glsl
+#version 330 core
+out vec4 FragColor;
+
+float near = 0.1; 
+float far  = 100.0; 
+
+float LinearizeDepth(float depth) 
+{
+    float z = depth * 2.0 - 1.0; // 转换为 NDC
+    return (2.0 * near * far) / (far + near - z * (far - near));  
+}
+
+void main()
+{         
+    float depth = LinearizeDepth(gl_FragCoord.z) / far; // 为了演示除以 far
+    FragColor = vec4(vec3(depth), 1.0);
+}
+```
+
+![1762004472697](image/note/1762004472697.png)
+
+#### 深度冲突,就是闪或者重叠渲染
+
+一个很常见的视觉错误会在两个平面或者三角形非常紧密地平行排列在一起时会发生，深度缓冲没有足够的精度来决定两个形状哪个在前面。结果就是这两个形状不断地在切换前后顺序，这会导致很奇怪的花纹。这个现象叫做深度冲突(Z-fighting)，因为它看起来像是这两个形状在争夺(Fight)谁该处于顶端。
+
+共面的(Coplanar)
+
+##### 防止深度冲突
+
+第一个也是最重要的技巧是 **永远不要把多个物体摆得太靠近，以至于它们的一些三角形会重叠** 。
+
+第二个技巧是 **尽可能将近平面设置远一些** 。因为近平面内,精度高一些
+
+另外一个很好的技巧是牺牲一些性能， **使用更高精度的深度缓冲** 。
+
+## 模板测试
+
+当片段着色器处理完一个片段之后，模板测试(Stencil Test)会开始执行，和深度测试一样，它也可能会丢弃片段。接下来，被保留的片段会进入深度测试，它可能会丢弃更多的片段。
+
+它的核心是用 “标记” 控制像素的显示 / 隐藏，实现轮廓、遮挡剔除、镜面反射等效果。
+
+模板测试是根据又一个缓冲来进行的，它叫做模板缓冲(Stencil Buffer)，我们可以在渲染的时候更新它来获得一些很有意思的效果。
+
+模板缓冲(Stencil Buffer)
+
+一个模板缓冲中，（通常）每个模板值(Stencil Value)是8位的。所以每个像素/片段一共能有256种不同的模板值。我们可以将这些模板值设置为我们想要的值，然后当某一个片段有某一个模板值的时候，我们就可以选择丢弃或是保留这个片段了。
+
+![1762005446135](image/note/1762005446135.png)
+
+***(这样图有误导,是有绘制的地方才有buffer)***
+
+模板缓冲首先会被清除为0，之后在模板缓冲中使用1填充了一个空心矩形。场景中的片段将会只在片段的模板值为1的时候会被渲染（其它的都被丢弃了）。
+
+模板缓冲操作允许我们在渲染片段时将模板缓冲设定为一个特定的值。通过在渲染时修改模板缓冲的内容，我们**写入**了模板缓冲。在同一个（或者接下来的）帧中，我们可以**读取**这些值，来决定丢弃还是保留某个片段。使用模板缓冲的时候你可以尽情发挥，但大体的步骤如下：
+
+* 启用模板缓冲的写入。
+* 渲染物体，更新模板缓冲的内容。
+* 禁用模板缓冲的写入。
+* 渲染（其它）物体，这次根据模板缓冲的内容丢弃特定的片段。
+
+所以，通过使用模板缓冲，我们可以根据场景中已绘制的其它物体的片段，来决定是否丢弃特定的片段。
+
+```
+glEnable(GL_STENCIL_TEST);
+...
+glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+```
+
+#### 模板函数
+
+glStencilFunc和glStencilOp
+
+glStencilFunc(GLenum func, GLint ref, GLuint mask)一共包含三个参数：
+
+* `func`：设置模板测试函数(Stencil Test Function)。这个测试函数将会应用到已储存的模板值上和glStencilFunc函数的 `ref`值上。可用的选项有：GL_NEVER、GL_LESS、GL_LEQUAL、GL_GREATER、GL_GEQUAL、GL_EQUAL、GL_NOTEQUAL和GL_ALWAYS。它们的语义和深度缓冲的函数类似。
+* `ref`：设置了模板测试的参考值(Reference Value)。模板缓冲的内容将会与这个值进行比较。
+* `mask`：设置一个掩码，它将会与参考值和储存的模板值在测试比较它们之前进行与(AND)运算。初始情况下所有位都为1。
+
+```
+glStencilFunc(GL_EQUAL, 1, 0xFF) // 这会告诉OpenGL，只要一个片段的模板值等于(GL_EQUAL)参考值1，片段将会通过测试并被绘制，否则会被丢弃。
+```
+
+glStencilOp(GLenum sfail, GLenum dpfail, GLenum dppass)一共包含三个选项，我们能够设定每个选项应该采取的行为：
+
+* `sfail`：模板测试失败时采取的行为。
+* `dpfail`：模板测试通过，但深度测试失败时采取的行为。
+* `dppass`：模板测试和深度测试都通过时采取的行为。
+
+| 行为         | 描述                                               |
+| ------------ | -------------------------------------------------- |
+| GL_KEEP      | 保持当前储存的模板值                               |
+| GL_ZERO      | 将模板值设置为0                                    |
+| GL_REPLACE   | 将模板值设置为glStencilFunc函数设置的 `ref`值    |
+| GL_INCR      | 如果模板值小于最大值则将模板值加1                  |
+| GL_INCR_WRAP | 与GL_INCR一样，但如果模板值超过了最大值则归零      |
+| GL_DECR      | 如果模板值大于最小值则将模板值减1                  |
+| GL_DECR_WRAP | 与GL_DECR一样，但如果模板值小于0则将其设置为最大值 |
+| GL_INVERT    | 按位翻转当前的模板缓冲值                           |
+
+#### 物体轮廓
+
+仅仅看了前面的部分你还是不太可能能够完全理解模板测试的工作原理，所以我们将会展示一个使用模板测试就可以完成的有用特性，它叫做物体轮廓(Object Outlining)。
+
+![1762007438881](image/note/1762007438881.png)
+
+为物体创建轮廓的步骤如下：
+
+1. 启用模板写入。
+2. 在绘制（需要添加轮廓的）物体之前，将模板函数设置为GL_ALWAYS，每当物体的片段被渲染时，将模板缓冲更新为1。
+3. 渲染物体。
+4. 禁用模板写入以及深度测试。
+5. 将每个物体缩放一点点。
+6. 使用一个不同的片段着色器，输出一个单独的（边框）颜色。
+7. 再次绘制物体，但只在它们片段的模板值不等于1时才绘制。
+8. 再次启用模板写入和深度测试。
+
+这个过程将每个物体的片段的模板缓冲设置为1，当我们想要绘制边框的时候，我们主要绘制放大版本的物体中模板测试通过的部分，也就是物体的边框的位置。我们主要使用模板缓冲丢弃了放大版本中属于原物体片段的部分。
+
+```C++
+glEnable(GL_DEPTH_TEST);
+glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);  
+
+glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT); 
+
+glStencilMask(0x00); // 记得保证我们在绘制地板的时候不会更新模板缓冲
+normalShader.use();
+DrawFloor()  
+
+glStencilFunc(GL_ALWAYS, 1, 0xFF); 
+glStencilMask(0xFF); 
+DrawTwoContainers();
+
+glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
+glStencilMask(0x00); 
+glDisable(GL_DEPTH_TEST);
+shaderSingleColor.use(); 
+DrawTwoScaledUpContainers();
+glStencilMask(0xFF);
+glEnable(GL_DEPTH_TEST); 
+```
+
+重要点:
+
+```C++
+        glStencilFunc(GL_NOTEQUAL, 1, 0xFF); // 绘制区域
+        glStencilMask(0x00); // 是否写入stencil buffer
+```
+
+
+
+***!!!绘制不是绘制全屏幕,而是绘制有的vao,vbo数据的地方!!!***
+
+
+# 注意点 非常重要
+
+## 1. 绘制
+
+!!!绘制不是绘制全屏幕,而是绘制有比如vao,vbo数据的地方!!!
+
+vs/fs 这些,是绘制有数据的点,而不是所有的.
+
+不是整个屏幕扫描!!!
+
+一定要注意,不然概念全乱了!!!
 
 123
 
