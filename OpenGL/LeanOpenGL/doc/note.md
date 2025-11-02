@@ -1161,7 +1161,7 @@ float LinearizeDepth(float depth)
 }
 
 void main()
-{       
+{     
     float depth = LinearizeDepth(gl_FragCoord.z) / far; // 为了演示除以 far
     FragColor = vec4(vec3(depth), 1.0);
 }
@@ -1326,7 +1326,7 @@ in vec2 TexCoords;
 uniform sampler2D texture1;
 
 void main()
-{         
+{       
     vec4 texColor = texture(texture1, TexCoords);
     if(texColor.a < 0.1)
         discard;
@@ -1361,28 +1361,11 @@ void main()
 
 ![1762055127301](image/note/1762055127301.png)
 
-
 这样子很不错，但我们该如何让OpenGL使用这样的因子呢？正好有一个专门的函数，叫做glBlendFunc。
 
 glBlendFunc(GLenum sfactor, GLenum dfactor)函数接受两个参数，来设置源和目标因子。OpenGL为我们定义了很多个选项，我们将在下面列出大部分最常用的选项。注意常数颜色向量**ˉ**C**c**o**n**s**t**a**n**t可以通过glBlendColor函数来另外设置。
 
-
-| 选项                            | 值                                                                                                                                                  |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GL_ZERO`                     | 因子等于**0**                                                                                                                                 |
-| `GL_ONE`                      | 因子等于**1**                                                                                                                                 |
-| `GL_SRC_COLOR`                | 因子等于源颜色向量**ˉ**C**s**o**u**r**c**e                                                                                 |
-| `GL_ONE_MINUS_SRC_COLOR`      | 因子等于**1**−**ˉ**C**s**o**u**r**c**e                                                                              |
-| `GL_DST_COLOR`                | 因子等于目标颜色向量**ˉ**C**d**e**s**t**i**n**a**t**i**o**n**                                            |
-| `GL_ONE_MINUS_DST_COLOR`      | 因子等于**1**−**ˉ**C**d**e**s**t**i**n**a**t**i**o**n**                                           |
-| `GL_SRC_ALPHA`                | 因子等于**ˉ**C**s**o**u**r**c**e的**a**l**p**h**a**分量                                                  |
-| `GL_ONE_MINUS_SRC_ALPHA`      | 因子等于**1**− **ˉ**C**s**o**u**r**c**e的**a**l**p**h**a**分量                                    |
-| `GL_DST_ALPHA`                | 因子等于**ˉ**C**d**e**s**t**i**n**a**t**i**o**n**的**a**l**p**h**a**分量               |
-| `GL_ONE_MINUS_DST_ALPHA`      | 因子等于**1**− **ˉ**C**d**e**s**t**i**n**a**t**i**o**n**的**a**l**p**h**a**分量 |
-| `GL_CONSTANT_COLOR`           | 因子等于常数颜色向量**ˉ**C**c**o**n**s**t**a**n**t                                                                   |
-| `GL_ONE_MINUS_CONSTANT_COLOR` | 因子等于**1**−**ˉ**C**c**o**n**s**t**a**n**t                                                                  |
-| `GL_CONSTANT_ALPHA`           | 因子等于**ˉ**C**c**o**n**s**t**a**n**t的**a**l**p**h**a**分量                                      |
-| `GL_ONE_MINUS_CONSTANT_ALPHA` | 因子等于**1**− **ˉ**C**c**o**n**s**t**a**n**t的**a**l**p**h**a**分量                        |
+![1762058680521](image/note/1762058680521.png)
 
 为了获得之前两个方形的混合结果，我们需要使用源颜色向量的**a**l**p**h**a**作为源因子，使用**1**−**a**l**p**h**a**作为目标因子。这将会产生以下的glBlendFunc：
 
@@ -1439,7 +1422,7 @@ for (unsignedint i = 0; i < windows.size(); i++)
 for(std::map<float,glm::vec3>::reverse_iterator it = sorted.rbegin(); it != sorted.rend(); ++it) 
 {
     model = glm::mat4();
-    model = glm::translate(model, it->second);            
+    model = glm::translate(model, it->second);          
     shader.setMat4("model", model);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
@@ -1451,7 +1434,298 @@ for(std::map<float,glm::vec3>::reverse_iterator it = sorted.rbegin(); it != sort
 >
 > 在场景中排序物体是一个很困难的技术，很大程度上由你场景的类型所决定，更别说它额外需要消耗的处理能力了。完整渲染一个包含不透明和透明物体的场景并不是那么容易。更高级的技术还有次序无关透明度(Order Independent Transparency, OIT)，但这超出本教程的范围了。现在，你还是必须要普通地混合你的物体，但如果你很小心，并且知道目前方法的限制的话，你仍然能够获得一个比较不错的混合实现。
 
+## 面剔除 Face Culling
 
+原理:
+
+尝试在脑子中想象一个3D立方体，数数你从任意方向最多能同时看到几个面。如果你的想象力不是过于丰富了，你应该能得出最大的面数是3。你可以从任意位置和任意方向看向这个球体，但你永远不能看到3个以上的面。所以我们为什么要浪费时间绘制我们不能看见的那3个面呢？如果我们能够以某种方式丢弃这几个看不见的面，我们能省下超过50%的片段着色器执行数！
+
+> 我说的是**超过**50%而不是50%，因为从特定角度来看的话只能看见2个甚至是1个面。在这种情况下，我们就能省下超过50%了。
+
+面剔除(Face Culling)
+
+面向(Front Facing)
+
+背向(Back Facing)
+
+环绕顺序(Winding Order)
+
+### 环绕顺序
+
+顺时针(Clockwise)
+
+逆时针(Counter-clockwise)
+
+右手
+
+![1762058966159](image/note/1762058966159.png)
+
+```C++
+float vertices[] = {
+    // 顺时针
+    vertices[0], // 顶点1
+    vertices[1], // 顶点2
+    vertices[2], // 顶点3
+    // 逆时针
+    vertices[0], // 顶点1
+    vertices[2], // 顶点3
+    vertices[1]  // 顶点2  
+};
+```
+
+实际的环绕顺序是在光栅化阶段进行的，也就是顶点着色器运行之后。这些顶点就是从**观察者视角**所见的了。
+
+![1762059548087](image/note/1762059548087.png)
+
+### 面剔除
+
+glEnable(GL_CULL_FACE);
+
+glCullFace(GL_FRONT);// 剔除面设置 (GL_FRONT,剔除正面)
+
+glCullFace函数有三个可用的选项：
+
+* `GL_BACK`：只剔除背向面。
+* `GL_FRONT`：只剔除正向面。
+* `GL_FRONT_AND_BACK`：剔除正向面和背向面。
+
+注意这只对像立方体这样的封闭形状有效。当我们想要绘制上一节中的草时，我们必须要再次禁用面剔除，因为它们的正向面和背向面都应该是可见的。
+
+glCullFace的初始值是GL_BACK。除了需要剔除的面之外，我们也可以通过调用glFrontFace，告诉OpenGL我们希望将顺时针的面（而不是逆时针的面）定义为正向面：
+
+glFrontFace(GL_CCW);
+
+默认值是GL_CCW，它代表的是逆时针的环绕顺序，另一个选项是GL_CW，它（显然）代表的是顺时针顺序。
+
+```
+glEnable(GL_CULL_FACE);
+glCullFace(GL_BACK);
+glFrontFace(GL_CW);
+// 同样效果
+glEnable(GL_CULL_FACE);
+glCullFace(GL_FRONT);
+```
+
+![1762060445460](image/note/1762060445460.png)
+
+
+### opengl是如何判断点的环绕方向的
+
+#### **1.将 3D 顶点投影到屏幕空间（2D）**
+
+OpenGL 会先对三角面的 3D 顶点（`v0, v1, v2`）执行完整的坐标变换（模型、视图、投影矩阵变换），最终得到 **屏幕坐标** （2D 坐标，即像素位置，如 `(x0,y0), (x1,y1), (x2,y2)`）。
+
+所以在光栅化时判断是最方便的!!!
+
+#### 2.**计算 2D 顶点的 “方向值”（判断 CW/CCW）**
+
+对于投影后的 2D 顶点 `(x0,y0), (x1,y1), (x2,y2)`，OpenGL 通过以下公式计算一个 “方向值”，用于判断环绕方向：
+
+// 计算方向值（基于三角形面积的 2 倍，符号表示方向）
+float value = (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0);
+
+#### 3.**结合 `glFrontFace` 规则判断正反面**
+
+OpenGL 会将上述计算的环绕方向（CW/CCW）与 `glFrontFace` 设定的 “正面规则” 对比：
+
+* 若 `glFrontFace(GL_CCW)`（默认）：当方向值 `value > 0`（CCW）时，判定为 **正面** ；否则为背面。
+* 若 `glFrontFace(GL_CW)`：当方向值 `value < 0`（CW）时，判定为 **正面** ；否则为背面。
+
+
+### 另外的方法
+
+用 shoelace algorithm 思路：vertex shader 之后直接用该算法对三个点计算面积，如果面积为负数则是在 back 剔除。算法非常简单：
+
+
+## 帧缓冲
+
+屏幕缓冲:
+
+用于写入颜色值的颜色缓冲、用于写入深度信息的深度缓冲和允许我们根据一些条件丢弃特定片段的模板缓冲。这些缓冲结合起来叫做帧缓冲(Framebuffer)，它被储存在GPU内存中的某处。
+
+OpenGL允许我们定义我们自己的帧缓冲，也就是说我们能够定义我们自己的颜色缓冲，甚至是深度缓冲和模板缓冲。
+
+### 创建一个帧缓冲
+
+帧缓冲对象(Framebuffer Object, FBO)
+
+unsignedint fbo;
+glGenFramebuffers(1, &fbo);
+
+glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+
+在绑定到GL_FRAMEBUFFER目标之后，所有的**读取**和**写入**帧缓冲的操作将会影响当前绑定的帧缓冲。我们也可以使用GL_READ_FRAMEBUFFER或GL_DRAW_FRAMEBUFFER，将一个帧缓冲分别绑定到读取目标或写入目标。绑定到GL_READ_FRAMEBUFFER的帧缓冲将会使用在所有像是glReadPixels的读取操作中，而绑定到GL_DRAW_FRAMEBUFFER的帧缓冲将会被用作渲染、清除等写入操作的目标。大部分情况你都不需要区分它们，通常都会使用GL_FRAMEBUFFER，绑定到两个上。
+
+不幸的是，我们现在还不能使用我们的帧缓冲，因为它还不完整(Complete)，一个完整的帧缓冲需要满足以下的条件：
+
+* 附加至少一个缓冲（颜色、深度或模板缓冲）。
+* 至少有一个颜色附件(Attachment)。
+* 所有的附件都必须是完整的（保留了内存）。
+* 每个缓冲都应该有相同的样本数(sample)。
+
+
+```C++
+if(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE) // 检查帧缓冲是否完整
+```
+
+由于我们的帧缓冲不是默认帧缓冲，渲染指令将不会对窗口的视觉输出有任何影响。出于这个原因，渲染到一个不同的帧缓冲被叫做离屏渲染(Off-screen Rendering)。要保证所有的渲染操作在主窗口中有视觉效果，我们需要再次激活默认帧缓冲，将它绑定到 `0`
+
+```C++
+glBindFramebuffer(GL_FRAMEBUFFER, 0);
+...
+glDeleteFramebuffers(1, &fbo); // 在完成所有的帧缓冲操作之后，不要忘记删除这个帧缓冲对象
+```
+
+在完整性检查执行之前，我们需要给帧缓冲附加一个附件。附件是一个内存位置，它能够作为帧缓冲的一个缓冲，可以将它想象为一个图像。当创建一个附件的时候我们有两个选项：纹理或渲染缓冲对象(Renderbuffer Object)。
+
+
+### 纹理附件
+
+
+当把一个纹理附加到帧缓冲的时候，所有的渲染指令将会写入到这个纹理中，就像它是一个普通的颜色/深度或模板缓冲一样。使用纹理的优点是，所有渲染操作的结果将会被储存在一个纹理图像中，我们之后可以在着色器中很方便地使用它。
+
+为帧缓冲创建一个纹理和创建一个普通的纹理差不多：
+
+```C++
+unsigned int texture;
+glGenTextures(1, &texture);
+glBindTexture(GL_TEXTURE_2D, texture);
+
+glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 800, 600, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+```
+
+主要的区别就是，我们将维度设置为了屏幕大小（尽管这不是必须的），并且我们给纹理的 `data`参数传递了 `NULL`。对于这个纹理，我们仅仅分配了内存而没有填充它。填充这个纹理将会在我们渲染到帧缓冲之后来进行。同样注意我们并不关心环绕方式或多级渐远纹理，我们在大多数情况下都不会需要它们。
+
+> 如果你想将你的屏幕渲染到一个更小或更大的纹理上，你需要（在渲染到你的帧缓冲之前）再次调用glViewport，使用纹理的新维度作为参数，否则只有一小部分的纹理或屏幕会被渲染到这个纹理上。
+
+
+glFrameBufferTexture2D有以下的参数：
+
+* `target`：帧缓冲的目标（绘制、读取或者两者皆有）
+* `attachment`：我们想要附加的附件类型。当前我们正在附加一个颜色附件。注意最后的 `0`意味着我们可以附加多个颜色附件。我们将在之后的教程中提到。
+* `textarget`：你希望附加的纹理类型
+* `texture`：要附加的纹理本身
+* `level`：多级渐远纹理的级别。我们将它保留为0。
+
+除了颜色附件之外，我们还可以附加一个深度和模板缓冲纹理到帧缓冲对象中。要附加深度缓冲的话，我们将附件类型设置为GL_DEPTH_ATTACHMENT。注意纹理的格式(Format)和内部格式(Internalformat)类型将变为GL_DEPTH_COMPONENT，来反映深度缓冲的储存格式。要附加模板缓冲的话，你要将第二个参数设置为GL_STENCIL_ATTACHMENT，并将纹理的格式设定为GL_STENCIL_INDEX。
+
+也可以将深度缓冲和模板缓冲附加为一个单独的纹理。纹理的每32位数值将包含24位的深度信息和8位的模板信息。要将深度和模板缓冲附加为一个纹理的话，我们使用GL_DEPTH_STENCIL_ATTACHMENT类型，并配置纹理的格式，让它包含合并的深度和模板值。将一个深度和模板缓冲附加为一个纹理到帧缓冲的例子可以在下面找到：
+
+```C++
+glTexImage2D(
+  GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8, 800, 600, 0, 
+  GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, NULL
+);
+
+glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, texture, 0);
+```
+
+### 渲染缓冲对象附件 
+
+渲染缓冲对象(Renderbuffer Object)是在纹理之后引入到OpenGL中，作为一个可用的帧缓冲附件类型的，所以在过去纹理是唯一可用的附件。和纹理图像一样，渲染缓冲对象是一个真正的缓冲，即一系列的字节、整数、像素等。渲染缓冲对象附加的好处是，它会将数据储存为OpenGL原生的渲染格式，它是为离屏渲染到帧缓冲优化过的。
+
+渲染缓冲对象直接将所有的渲染数据储存到它的缓冲中，不会做任何针对纹理格式的转换，让它变为一个更快的可写储存介质。然而，渲染缓冲对象通常都是只写的，所以你不能读取它们（比如使用纹理访问）。当然你仍然还是能够使用glReadPixels来读取它，这会从当前绑定的帧缓冲，而不是附件本身，中返回特定区域的像素。
+
+因为它的数据已经是原生的格式了，当写入或者复制它的数据到其它缓冲中时是非常快的。所以，交换缓冲这样的操作在使用渲染缓冲对象时会非常快。我们在每个渲染迭代最后使用的glfwSwapBuffers，也可以通过渲染缓冲对象实现：只需要写入一个渲染缓冲图像，并在最后交换到另外一个渲染缓冲就可以了。渲染缓冲对象对这种操作非常完美。
+
+由于渲染缓冲对象通常都是只写的，它们会经常用于深度和模板附件，因为大部分时间我们都不需要从深度和模板缓冲中读取值，只关心深度和模板测试。我们**需要**深度和模板值用于测试，但不需要对它们进行 **采样** ，所以渲染缓冲对象非常适合它们。当我们不需要从这些缓冲中采样的时候，通常都会选择渲染缓冲对象，因为它会更优化一点。
+
+```
+unsigned int rbo;
+glGenRenderbuffers(1, &rbo);
+glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+
+//
+glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, 800, 600); //创建深度和模板缓冲对象
+
+glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+```
+
+通用数据缓冲(General Purpose Data Buffer)
+
+
+
+Creating a renderbuffer object is similar to texture objects, the difference being that this object is specifically designed to be used as a framebuffer attachment, instead of a general purpose data buffer like a texture. Here we've chosen GL_DEPTH24_STENCIL8 as the internal format, which holds both the depth and stencil buffer with 24 and 8 bits respectively.
+
+这段话核心是明确 OpenGL 中**渲染缓冲对象（Renderbuffer Object）** 与**纹理附件（Texture Attachment）** 在离屏渲染中的使用场景区分，核心逻辑围绕“是否需要采样缓冲数据”展开，具体解析如下：
+
+1. **核心前提**：二者都是帧缓冲（Framebuffer）的有效附件，用于存储离屏渲染的像素数据（如颜色、深度、模板信息），但设计初衷和效率侧重不同。
+2. **Renderbuffer 的优势与适用场景**：
+
+   - 优势：作为“写优化”的缓冲，数据以 GPU 原生格式存储，无需转换为纹理特定格式，因此**写入速度更快**，且 OpenGL 可对其做内存优化（如减少不必要的读写开销）。
+   - 适用场景：当你**不需要从缓冲中读取/采样数据**时——典型例子是深度缓冲、模板缓冲：这类缓冲仅用于渲染时的深度测试、模板测试（只需“写入”数据供 GPU 内部判断），无需在着色器中采样其数值（如不会用它当纹理贴到模型上），用 Renderbuffer 更高效。
+3. **纹理附件的适用场景**：
+
+   - 核心价值：缓冲数据会被存储为纹理格式，支持在后续渲染中（如着色器里）**采样数据**（比如把离屏渲染的结果当纹理贴到全屏四边形上，实现后处理）。
+   - 适用场景：当你需要读取缓冲中的数据时——比如颜色缓冲（后处理需采样像素颜色）、需要在着色器中获取深度值（如实现景深效果），此时必须用纹理附件，因为 Renderbuffer 不支持直接采样。
+4. **总结规则**：
+
+   - 选 Renderbuffer：仅需“写入数据供 GPU 内部使用”，无需采样（如深度/模板缓冲）；
+   - 选纹理附件：需“后续采样数据”（如颜色缓冲用于后处理、深度缓冲用于着色器计算）。
+
+
+### 渲染到纹理 Rendering to a texture
+
+```C++
+
+// 创建一个帧缓冲对象
+unsigned int framebuffer;
+glGenFramebuffers(1, &framebuffer);
+glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+
+...
+
+// 生成纹理
+unsigned int texColorBuffer;
+glGenTextures(1, &texColorBuffer);
+glBindTexture(GL_TEXTURE_2D, texColorBuffer);
+glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 800, 600, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+glBindTexture(GL_TEXTURE_2D, 0);
+
+// 将它附加到当前绑定的帧缓冲对象
+glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texColorBuffer, 0); 
+
+// 创建一个渲染缓冲对象
+unsigned int rbo;
+glGenRenderbuffers(1, &rbo);
+glBindRenderbuffer(GL_RENDERBUFFER, rbo); 
+glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, 800, 600);  
+glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+// 将渲染缓冲对象附加到帧缓冲的深度和模板附件上：
+glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+
+// 检查帧缓冲是否是完整的，如果不是，我们将打印错误信息
+if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
+
+// 记得要解绑帧缓冲，保证我们不会不小心渲染到错误的帧缓冲上
+glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
+
+```
+
+
+要想绘制场景到一个纹理上，我们需要采取以下的步骤：
+
+1. 将新的帧缓冲绑定为激活的帧缓冲，和往常一样渲染场景
+2. 绑定默认的帧缓冲
+3. 绘制一个横跨整个屏幕的四边形，将帧缓冲的颜色缓冲作为它的纹理。
+
+
+### 后期处理
+
+后期处理(Post-processing)
+
+
+++++wo shi fen ge xian++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 # 注意点 非常重要
 
@@ -1474,6 +1748,8 @@ vs/fs 这些,是绘制有数据的点,而不是所有的.
 ### early z
 
 Early-Z 是一种优化技术，它发生在顶点着色器和片元着色器之间，会提前进行深度测试，将很多无效的像素提前剔除，避免它们进入耗时的片元着色器阶段。而模板测试默认是不开启的，若开启，它是在片元着色器之后执行的，GPU 会读取模板缓冲区中该片元位置的模板值，并与参考值进行比较，以确定该片元是否通过测试。也就是说，Early-Z 在片元着色器之前起作用，而模板测试在片元着色器之后进行，所以 Early-Z 在模板测试前面。
+
+### 次序无关透明度(Order Independent Transparency, OIT)
 
 123
 
