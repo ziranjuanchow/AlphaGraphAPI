@@ -1161,7 +1161,7 @@ float LinearizeDepth(float depth)
 }
 
 void main()
-{     
+{   
     float depth = LinearizeDepth(gl_FragCoord.z) / far; // 为了演示除以 far
     FragColor = vec4(vec3(depth), 1.0);
 }
@@ -1326,7 +1326,7 @@ in vec2 TexCoords;
 uniform sampler2D texture1;
 
 void main()
-{       
+{   
     vec4 texColor = texture(texture1, TexCoords);
     if(texColor.a < 0.1)
         discard;
@@ -1422,7 +1422,7 @@ for (unsignedint i = 0; i < windows.size(); i++)
 for(std::map<float,glm::vec3>::reverse_iterator it = sorted.rbegin(); it != sorted.rend(); ++it) 
 {
     model = glm::mat4();
-    model = glm::translate(model, it->second);          
+    model = glm::translate(model, it->second);    
     shader.setMat4("model", model);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
@@ -1508,7 +1508,6 @@ glCullFace(GL_FRONT);
 
 ![1762060445460](image/note/1762060445460.png)
 
-
 ### opengl是如何判断点的环绕方向的
 
 #### **1.将 3D 顶点投影到屏幕空间（2D）**
@@ -1531,11 +1530,9 @@ OpenGL 会将上述计算的环绕方向（CW/CCW）与 `glFrontFace` 设定的 
 * 若 `glFrontFace(GL_CCW)`（默认）：当方向值 `value > 0`（CCW）时，判定为 **正面** ；否则为背面。
 * 若 `glFrontFace(GL_CW)`：当方向值 `value < 0`（CW）时，判定为 **正面** ；否则为背面。
 
-
 ### 另外的方法
 
 用 shoelace algorithm 思路：vertex shader 之后直接用该算法对三个点计算面积，如果面积为负数则是在 back 剔除。算法非常简单：
-
 
 ## 帧缓冲
 
@@ -1554,7 +1551,6 @@ glGenFramebuffers(1, &fbo);
 
 glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 
-
 在绑定到GL_FRAMEBUFFER目标之后，所有的**读取**和**写入**帧缓冲的操作将会影响当前绑定的帧缓冲。我们也可以使用GL_READ_FRAMEBUFFER或GL_DRAW_FRAMEBUFFER，将一个帧缓冲分别绑定到读取目标或写入目标。绑定到GL_READ_FRAMEBUFFER的帧缓冲将会使用在所有像是glReadPixels的读取操作中，而绑定到GL_DRAW_FRAMEBUFFER的帧缓冲将会被用作渲染、清除等写入操作的目标。大部分情况你都不需要区分它们，通常都会使用GL_FRAMEBUFFER，绑定到两个上。
 
 不幸的是，我们现在还不能使用我们的帧缓冲，因为它还不完整(Complete)，一个完整的帧缓冲需要满足以下的条件：
@@ -1563,7 +1559,6 @@ glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 * 至少有一个颜色附件(Attachment)。
 * 所有的附件都必须是完整的（保留了内存）。
 * 每个缓冲都应该有相同的样本数(sample)。
-
 
 ```C++
 if(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE) // 检查帧缓冲是否完整
@@ -1579,9 +1574,7 @@ glDeleteFramebuffers(1, &fbo); // 在完成所有的帧缓冲操作之后，不�
 
 在完整性检查执行之前，我们需要给帧缓冲附加一个附件。附件是一个内存位置，它能够作为帧缓冲的一个缓冲，可以将它想象为一个图像。当创建一个附件的时候我们有两个选项：纹理或渲染缓冲对象(Renderbuffer Object)。
 
-
 ### 纹理附件
-
 
 当把一个纹理附加到帧缓冲的时候，所有的渲染指令将会写入到这个纹理中，就像它是一个普通的颜色/深度或模板缓冲一样。使用纹理的优点是，所有渲染操作的结果将会被储存在一个纹理图像中，我们之后可以在着色器中很方便地使用它。
 
@@ -1601,7 +1594,6 @@ glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 主要的区别就是，我们将维度设置为了屏幕大小（尽管这不是必须的），并且我们给纹理的 `data`参数传递了 `NULL`。对于这个纹理，我们仅仅分配了内存而没有填充它。填充这个纹理将会在我们渲染到帧缓冲之后来进行。同样注意我们并不关心环绕方式或多级渐远纹理，我们在大多数情况下都不会需要它们。
 
 > 如果你想将你的屏幕渲染到一个更小或更大的纹理上，你需要（在渲染到你的帧缓冲之前）再次调用glViewport，使用纹理的新维度作为参数，否则只有一小部分的纹理或屏幕会被渲染到这个纹理上。
-
 
 glFrameBufferTexture2D有以下的参数：
 
@@ -1624,7 +1616,7 @@ glTexImage2D(
 glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, texture, 0);
 ```
 
-### 渲染缓冲对象附件 
+### 渲染缓冲对象附件
 
 渲染缓冲对象(Renderbuffer Object)是在纹理之后引入到OpenGL中，作为一个可用的帧缓冲附件类型的，所以在过去纹理是唯一可用的附件。和纹理图像一样，渲染缓冲对象是一个真正的缓冲，即一系列的字节、整数、像素等。渲染缓冲对象附加的好处是，它会将数据储存为OpenGL原生的渲染格式，它是为离屏渲染到帧缓冲优化过的。
 
@@ -1647,8 +1639,6 @@ glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDER
 
 通用数据缓冲(General Purpose Data Buffer)
 
-
-
 Creating a renderbuffer object is similar to texture objects, the difference being that this object is specifically designed to be used as a framebuffer attachment, instead of a general purpose data buffer like a texture. Here we've chosen GL_DEPTH24_STENCIL8 as the internal format, which holds both the depth and stencil buffer with 24 and 8 bits respectively.
 
 这段话核心是明确 OpenGL 中**渲染缓冲对象（Renderbuffer Object）** 与**纹理附件（Texture Attachment）** 在离屏渲染中的使用场景区分，核心逻辑围绕“是否需要采样缓冲数据”展开，具体解析如下：
@@ -1666,7 +1656,6 @@ Creating a renderbuffer object is similar to texture objects, the difference bei
 
    - 选 Renderbuffer：仅需“写入数据供 GPU 内部使用”，无需采样（如深度/模板缓冲）；
    - 选纹理附件：需“后续采样数据”（如颜色缓冲用于后处理、深度缓冲用于着色器计算）。
-
 
 ### 渲染到纹理 Rendering to a texture
 
@@ -1712,7 +1701,6 @@ glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 ```
 
-
 要想绘制场景到一个纹理上，我们需要采取以下的步骤：
 
 1. 将新的帧缓冲绑定为激活的帧缓冲，和往常一样渲染场景
@@ -1752,7 +1740,6 @@ void main()
 ```
 
 #### 核效果
-
 
 在一个纹理图像上做后期处理的另外一个好处是，我们可以从纹理的其它地方采样颜色值。比如说我们可以在当前纹理坐标的周围取一小块区域，对当前纹理值周围的多个纹理值进行采样。我们可以结合它们创建出很有意思的效果。
 
@@ -1838,7 +1825,17 @@ float kernel[9] = float[](
 
 > 注意，核在对屏幕纹理的边缘进行采样的时候，由于还会对中心像素周围的8个像素进行采样，其实会取到纹理之外的像素。由于环绕方式默认是GL_REPEAT，所以在没有设置的情况下取到的是屏幕另一边的像素，而另一边的像素本不应该对中心像素产生影响，这就可能会在屏幕边缘产生很奇怪的条纹。为了消除这一问题，我们可以将屏幕纹理的环绕方式都设置为GL_CLAMP_TO_EDGE。这样子在取到纹理外的像素时，就能够重复边缘的像素来更精确地估计最终的值了。
 
+## 立方体贴图 cubemap
 
+将多个纹理组合起来映射到一张纹理上的一种纹理类型：立方体贴图(Cube Map)
+
+天空盒(Skybox)
+
+绘制天空盒时，我们需要将它变为场景中的第一个渲染的物体，并且禁用深度写入。这样子天空盒就会永远被绘制在其它物体的背后了。
+
+目前我们是首先渲染天空盒，之后再渲染场景中的其它物体。这样子能够工作，但不是非常高效。如果我们先渲染天空盒，我们就会对屏幕上的每一个像素运行一遍片段着色器，即便只有一小部分的天空盒最终是可见的。可以使用提前深度测试(Early Depth Testing)轻松丢弃掉的片段能够节省我们很多宝贵的带宽。
+
+在[坐标系统](https://learnopengl-cn.github.io/01%20Getting%20started/08%20Coordinate%20Systems/)小节中我们说过，**透视除法**是在顶点着色器运行之后执行的，将gl_Position的 `xyz`坐标除以w分量。我们又从[深度测试](https://learnopengl-cn.github.io/04%20Advanced%20OpenGL/01%20Depth%20testing/)小节中知道，相除结果的z分量等于顶点的深度值。使用这些信息，我们可以将输出位置的z分量等于它的w分量，让z分量永远等于1.0，这样子的话，当透视除法执行之后，z分量会变为 `w / w = 1.0`。
 
 
 ++++wo shi fen ge xian++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -1855,7 +1852,7 @@ vs/fs 这些,是绘制有数据的点,而不是所有的.
 
 一定要注意,不然概念全乱了!!!
 
-## 时序
+## 2.时序
 
 ### 测试
 
@@ -1865,7 +1862,49 @@ vs/fs 这些,是绘制有数据的点,而不是所有的.
 
 Early-Z 是一种优化技术，它发生在顶点着色器和片元着色器之间，会提前进行深度测试，将很多无效的像素提前剔除，避免它们进入耗时的片元着色器阶段。而模板测试默认是不开启的，若开启，它是在片元着色器之后执行的，GPU 会读取模板缓冲区中该片元位置的模板值，并与参考值进行比较，以确定该片元是否通过测试。也就是说，Early-Z 在片元着色器之前起作用，而模板测试在片元着色器之后进行，所以 Early-Z 在模板测试前面。
 
-### 次序无关透明度(Order Independent Transparency, OIT)
+## 次序无关透明度(Order Independent Transparency, OIT)
+
+## 渲染缓冲/颜色缓冲
+
+> 渲染缓冲（Renderbuffer）看似“可以被纹理替代”，但实际上它的存在是为了**填补纹理在特定场景下的性能和功能空白**。简单说：**纹理的优势是“灵活可采样”，而渲染缓冲的优势是“高效纯输出”**——在不需要采样的场景下，渲染缓冲比纹理更快、更省资源，这就是它不可替代的核心价值。
+>
+> ### 为什么渲染缓冲必须存在？3个关键原因
+>
+> #### 1. 硬件对渲染缓冲有特殊优化，写入速度更快
+>
+> 纹理为了支持“着色器采样”，其内存布局必须满足通用的纹理访问规则（如对齐要求、mipmap支持等），这会增加额外的存储和写入开销。而渲染缓冲的设计目标是**“只写不读（对CPU/GPU着色器而言）”**，硬件可以对其进行极致优化：
+>
+> - 内存布局完全适配渲染管线（如直接对应帧缓冲的扫描线顺序），写入时无需额外转换。
+> - 可以使用硬件原生的压缩格式（如深度缓冲的专用压缩算法），节省带宽和内存。
+>
+> 例如，深度缓冲用渲染缓冲存储时，GPU写入深度值的速度通常比用纹理快10%~30%（具体依赖硬件，但趋势一致）。
+>
+> #### 2. 多采样场景下，渲染缓冲是唯一高效选择
+>
+> 多采样抗锯齿（MSAA）需要存储每个像素的多个采样点数据（如4x MSAA要存4个深度/颜色样本）。
+>
+> - 纹理虽然支持多采样（`GL_TEXTURE_2D_MULTISAMPLE`），但采样数据的格式是“打包的”，着色器无法直接访问单个样本（必须通过 `texelFetch` 且格式受限），且内存开销更大。
+> - 渲染缓冲的多采样存储是**硬件优化的“原生格式”**，专门用于MSAA的样本合并（Resolve），写入和合并效率远高于多采样纹理。
+>
+> 因此，MSAA的深度/模板缓冲几乎必用渲染缓冲，否则性能会严重下降。
+>
+> #### 3. 避免“不必要的功能开销”
+>
+> 纹理支持的采样、mipmap、过滤等功能，在深度/模板缓冲等场景下完全用不上。如果强行用纹理存储这些数据，相当于“为不需要的功能买单”：
+>
+> - 内存占用更高（纹理需额外存储采样元数据）。
+> - GPU需维护纹理状态（如过滤模式、边界处理），增加管线负担。
+>
+> 渲染缓冲则“按需精简”，只保留必要的存储功能，避免这些冗余开销。
+>
+> ### 一句话总结：存在即合理
+>
+> - 如果你需要**“采样渲染结果”**（如后处理、动态纹理），用纹理——灵活性优先。
+> - 如果你只需要**“高效存储渲染过程数据”**（如深度、模板、MSAA样本），用渲染缓冲——性能优先。
+>
+> 就像“水杯”和“保温杯”：水杯功能多（可以装水、泡茶、当容器），但保温杯在“长时间保温”这件事上更高效。渲染缓冲就是OpenGL为“高效纯输出”场景设计的“保温杯”，无法被纹理完全替代。
+>
+> 试试这个实验：用纹理和渲染缓冲分别作为深度缓冲，渲染一个100万个三角形的场景，对比帧率——你会直观看到渲染缓冲的性能优势。
 
 123
 
