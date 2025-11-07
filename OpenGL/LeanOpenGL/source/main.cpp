@@ -75,7 +75,7 @@ int main()
     }
 
     // tell stb_image.h to flip loaded texture's on the y-axis (before loading model).
-    //stbi_set_flip_vertically_on_load(true);
+    stbi_set_flip_vertically_on_load(true);
     
     // configure global opengl state
     // -----------------------------
@@ -87,8 +87,8 @@ int main()
     
     // build and compile shaders
     // -------------------------
-    Shader shader("shaders/6.1.cubemaps.vs", "shaders/6.1.cubemaps.fs");
-    Shader shaderSingleColor("shaders/6.1.cubemaps.vs", "shaders/2.stencil_single_color.fs");
+    Shader shader("shaders/1.model_loading.vs", "shaders/1.model_loading.fs");
+    Shader shaderSingleColor("shaders/1.model_loading.vs", "shaders/2.stencil_single_color.fs");
     Shader skyboxShader("shaders/6.1.skybox.vs", "shaders/6.1.skybox.fs");
 
     // load models
@@ -161,14 +161,16 @@ int main()
         "resources/textures/skybox/front.jpg",
         "resources/textures/skybox/back.jpg"
     };
+    stbi_set_flip_vertically_on_load(false);
     unsigned int cubemapTexture = loadCubemap(faces);
+    //stbi_set_flip_vertically_on_load(true);
 
     // shader configuration
     // --------------------
-    shader.use();
-    shader.setInt("texture1", 0);
-    shaderSingleColor.use();
-    shaderSingleColor.setInt("texture1", 0);
+    // shader.use();
+    // shader.setInt("texture1", 0);
+    // shaderSingleColor.use();
+    // shaderSingleColor.setInt("texture1", 0);
     skyboxShader.use();
     skyboxShader.setInt("skybox", 0);
 
@@ -224,7 +226,7 @@ int main()
         glStencilFunc(GL_ALWAYS, 0, 0xFF);
         glEnable(GL_DEPTH_TEST);
 
-        stbi_set_flip_vertically_on_load(false);
+        //
         // draw skybox as last
         glDepthFunc(GL_LEQUAL);  // change depth function so depth test passes when values are equal to depth buffer's content
         skyboxShader.use();
