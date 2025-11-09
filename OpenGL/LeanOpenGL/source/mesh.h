@@ -55,6 +55,7 @@ public:
         unsigned int specularNr = 1;
         unsigned int normalNr = 1;
         unsigned int heightNr = 1;
+        unsigned int reflectNr = 1;
         for (unsigned int i = 0; i < textures.size(); i++)
         {
             glActiveTexture(GL_TEXTURE0 + i);// active proper texture unit before binding
@@ -76,6 +77,10 @@ public:
             else if (name == "texture_height")
             {
                 number = std::to_string(heightNr++);
+            }
+            else if (name == "texture_reflect")
+            {
+                number = std::to_string(reflectNr++);
             }
 
             // now set the texture type
