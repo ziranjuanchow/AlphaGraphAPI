@@ -2049,7 +2049,7 @@ out vec4 FragColor;
 layout (depth_greater) out float gl_FragDepth;
 
 void main()
-{         
+{       
     FragColor = vec4(1.0);
     gl_FragDepth = gl_FragCoord.z + 0.1;
 }  
@@ -2168,7 +2168,6 @@ layout (shared) uniform LightData {
 };
 ```
 
-
 | 特性           | `std140` 布局                         | `shared` 布局                         |
 | -------------- | --------------------------------------- | --------------------------------------- |
 | 布局规则       | 严格固定的对齐 / 偏移规则（跨平台一致） | 无固定规则，由编译器 / 驱动自主优化     |
@@ -2232,7 +2231,6 @@ glBindBufferBase(GL_UNIFORM_BUFFER, 2, uboExampleBlock);
 glBindBufferRange(GL_UNIFORM_BUFFER, 2, uboExampleBlock, 0, 152);
 ```
 
-
 glBindbufferBase需要一个目标，一个绑定点索引和一个Uniform缓冲对象作为它的参数。这个函数将uboExampleBlock链接到绑定点2上，自此，绑定点的两端都链接上了。你也可以使用glBindBufferRange函数，它需要一个附加的偏移量和大小参数，这样子你可以绑定Uniform缓冲的特定一部分到绑定点中。通过使用glBindBufferRange函数，你可以让多个不同的Uniform块绑定到同一个Uniform缓冲对象上。
 
 现在，所有的东西都配置完毕了，我们可以开始向Uniform缓冲中添加数据了。只要我们需要，就可以使用glBufferSubData函数，用一个字节数组添加所有的数据，或者更新缓冲的一部分。要想更新uniform变量boolean，我们可以用以下方式更新Uniform缓冲对象：
@@ -2247,7 +2245,6 @@ glBindBuffer(GL_UNIFORM_BUFFER, 0);
 ```
 
 同样的步骤也能应用到Uniform块中其它的uniform变量上，但需要使用不同的范围参数。
-
 
 我们会将投影和观察矩阵存储到一个叫做Matrices的Uniform块中。我们不会将模型矩阵存在这里，因为模型矩阵在不同的着色器中会不断改变，所以使用Uniform缓冲对象并不会带来什么好处。
 
@@ -2299,7 +2296,7 @@ glBindBuffer(GL_UNIFORM_BUFFER, uboMatrices);
 glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(projection));
 glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-glm::mat4 view = camera.GetViewMatrix();         
+glm::mat4 view = camera.GetViewMatrix();       
 glBindBuffer(GL_UNIFORM_BUFFER, uboMatrices);
 glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(view));
 glBindBuffer(GL_UNIFORM_BUFFER, 0);
@@ -2313,7 +2310,7 @@ shaderRed.use();
 glm::mat4 model;
 model = glm::translate(model, glm::vec3(-0.75f, 0.75f, 0.0f));  // 移动到左上角
 shaderRed.setMat4("model", model);
-glDrawArrays(GL_TRIANGLES, 0, 36);      
+glDrawArrays(GL_TRIANGLES, 0, 36);    
 // ... 绘制绿色立方体
 // ... 绘制蓝色立方体
 // ... 绘制黄色立方体 
@@ -2325,9 +2322,8 @@ glDrawArrays(GL_TRIANGLES, 0, 36);
 
 Uniform缓冲对象比起独立的uniform有很多好处。第一，一次设置很多uniform会比一个一个设置多个uniform要快很多。第二，比起在多个着色器中修改同样的uniform，在Uniform缓冲中修改一次会更容易一些。最后一个好处可能不会立即显现，如果使用Uniform缓冲对象的话，你可以在着色器中使用更多的uniform。OpenGL限制了它能够处理的uniform数量，这可以通过GL_MAX_VERTEX_UNIFORM_COMPONENTS来查询。当使用Uniform缓冲对象时，最大的数量会更高。所以，当你达到了uniform的最大数量时（比如再做骨骼动画(Skeletal Animation)的时候），你总是可以选择使用Uniform缓冲对象。
 
-
-
 ## 几何着色器
+
 
 ## 实例化
 
