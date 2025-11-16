@@ -2049,7 +2049,7 @@ out vec4 FragColor;
 layout (depth_greater) out float gl_FragDepth;
 
 void main()
-{       
+{   
     FragColor = vec4(1.0);
     gl_FragDepth = gl_FragCoord.z + 0.1;
 }  
@@ -2296,7 +2296,7 @@ glBindBuffer(GL_UNIFORM_BUFFER, uboMatrices);
 glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(projection));
 glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-glm::mat4 view = camera.GetViewMatrix();       
+glm::mat4 view = camera.GetViewMatrix();   
 glBindBuffer(GL_UNIFORM_BUFFER, uboMatrices);
 glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(view));
 glBindBuffer(GL_UNIFORM_BUFFER, 0);
@@ -2310,7 +2310,7 @@ shaderRed.use();
 glm::mat4 model;
 model = glm::translate(model, glm::vec3(-0.75f, 0.75f, 0.0f));  // 移动到左上角
 shaderRed.setMat4("model", model);
-glDrawArrays(GL_TRIANGLES, 0, 36);    
+glDrawArrays(GL_TRIANGLES, 0, 36);  
 // ... 绘制绿色立方体
 // ... 绘制蓝色立方体
 // ... 绘制黄色立方体 
@@ -2324,10 +2324,104 @@ Uniform缓冲对象比起独立的uniform有很多好处。第一，一次设置
 
 ## 几何着色器
 
+![1763135518810](image/note/1763135518810.png)
+
+在顶点和片段着色器之间有一个可选的几何着色器(Geometry Shader)，几何着色器的输入是一个图元（如点或三角形）的一组顶点。几何着色器可以在顶点发送到下一着色器阶段之前对它们随意变换。然而，几何着色器最有趣的地方在于，它能够将（这一组）顶点变换为完全不同的图元，并且还能生成比原来更多的顶点。
+
+在几何着色器的顶部，我们需要声明从顶点着色器输入的图元类型。这需要在in关键字前声明一个布局修饰符(Layout Qualifier)。这个输入布局修饰符可以从顶点着色器接收下列任何一个图元值：
+
+* `points`：绘制GL_POINTS图元时（1）。
+* `lines`：绘制GL_LINES或GL_LINE_STRIP时（2）
+* `lines_adjacency`：GL_LINES_ADJACENCY或GL_LINE_STRIP_ADJACENCY（4）
+* `triangles`：GL_TRIANGLES、GL_TRIANGLE_STRIP或GL_TRIANGLE_FAN（3）
+* `triangles_adjacency`：GL_TRIANGLES_ADJACENCY或GL_TRIANGLE_STRIP_ADJACENCY（6）
+
+以上是能提供给glDrawArrays渲染函数的几乎所有图元了。如果我们想要将顶点绘制为GL_TRIANGLES，我们就要将输入修饰符设置为 `triangles`。括号内的数字表示的是一个图元所包含的最小顶点数。
+
+接下来，我们还需要指定几何着色器输出的图元类型，这需要在out关键字前面加一个布局修饰符。和输入布局修饰符一样，输出布局修饰符也可以接受几个图元值：
+
+* `points`
+* `line_strip`
+* `triangle_strip`
+
+```C++
+#version 330 core
+layout (triangles) in;
+layout (line_strip, max_vertices = 6) out;
+
+in VS_OUT {
+    vec3 normal;
+} gs_in[];
+
+const float MAGNITUDE = 0.2;
+
+uniform mat4 projection;
+
+void GenerateLine(int index)
+{
+    gl_Position = projection * gl_in[index].gl_Position;
+    EmitVertex();
+    gl_Position = projection * (gl_in[index].gl_Position + vec4(gs_in[index].normal, 0.0) * MAGNITUDE);
+    EmitVertex();
+    EndPrimitive();
+}
+
+void main()
+{
+    GenerateLine(0); // first vertex normal
+    GenerateLine(1); // second vertex normal
+    GenerateLine(2); // third vertex normal
+}
+```
 
 ## 实例化
 
+
 ## 抗锯齿
+
+锯齿边缘(Jagged Edges)
+
+走样(Aliasing)
+
+抗锯齿（Anti-aliasing，也被称为反走样）
+
+超采样抗锯齿(Super Sample Anti-aliasing, SSAA)
+
+下采样(Downsample)
+
+多重采样抗锯齿(Multisample Anti-aliasing, MSAA)
+
+
+### 多重采样
+
+![1763296566347](image/note/1763296566347.png)
+
+采样点(Sample Point)
+
+![1763296624053](image/note/1763296624053.png)
+
+子采样点(Subsample)
+
+![1763296650140](image/note/1763296650140.png)
+
+> 采样点的数量可以是任意的，更多的采样点能带来更精确的遮盖率。
+
+![1763296778769](image/note/1763296778769.png)
+
+填充颜色之后:
+
+![1763296832633](image/note/1763296832633.png)
+
+多重采样缓冲(Multisample Buffer)
+
+```
+glEnable(GL_MULTISAMPLE);
+......
+glfwWindowHint(GLFW_SAMPLES, 4);
+```
+
+
+
 
 # 复习
 
