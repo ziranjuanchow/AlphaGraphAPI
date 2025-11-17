@@ -2420,6 +2420,131 @@ glEnable(GL_MULTISAMPLE);
 glfwWindowHint(GLFW_SAMPLES, 4);
 ```
 
+### 离屏SMAA
+
+#### 多重采样纹理附件
+
+为了创建一个支持储存多个采样点的纹理，我们使用glTexImage2DMultisample来替代glTexImage2D，它的纹理目标是GL_TEXTURE_2D_MULTISAPLE。
+
+```
+glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, tex);
+glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, samples, GL_RGB, width, height, GL_TRUE);
+glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0);
+```
+
+我们使用glFramebufferTexture2D将多重采样纹理附加到帧缓冲上，但这里纹理类型使用的是GL_TEXTURE_2D_MULTISAMPLE。
+
+```
+glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, tex, 0);
+```
+
+
+#### 多重采样渲染缓冲对象
+
+和纹理类似，创建一个多重采样渲染缓冲对象并不难。我们所要做的只是在指定（当前绑定的）渲染缓冲的内存存储时，将glRenderbufferStorage的调用改为glRenderbufferStorageMultisample就可以了。
+
+```cpp
+glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH24_STENCIL8, width, height);
+```
+
+
+#### 渲染到多重采样帧缓冲
+
+**!!! 多理解**
+
+**!!! 只要我们在帧缓冲绑定时绘制任何东西，光栅器就会负责所有的多重采样运算。我们最终会得到一个多重采样颜色缓冲以及/或深度和模板缓冲。因为多重采样缓冲有一点特别，*我们不能直接将它们的缓冲图像用于其他运算，比如在着色器中对它们进行采样*。**
+
+**一个多重采样的图像包含比普通图像更多的信息，我们所要做的是缩小或者还原(Resolve)图像。多重采样帧缓冲的还原通常是通过glBlitFramebuffer来完成，它能够将一个帧缓冲中的某个区域复制到另一个帧缓冲中，并且将多重采样缓冲还原。**
+
+**glBlitFramebuffer会将一个用4个屏幕空间坐标所定义的源区域复制到一个同样用4个屏幕空间坐标所定义的目标区域中。你可能记得在[帧缓冲](https://learnopengl-cn.github.io/04%20Advanced%20OpenGL/05%20Framebuffers/)教程中，当我们绑定到GL_FRAMEBUFFER时，我们是同时绑定了读取和绘制的帧缓冲目标。我们也可以将帧缓冲分开绑定至GL_READ_FRAMEBUFFER与GL_DRAW_FRAMEBUFFER。glBlitFramebuffer函数会根据这两个目标，决定哪个是源帧缓冲，哪个是目标帧缓冲。接下来，我们可以将图像位块传送(Blit)到默认的帧缓冲中，将多重采样的帧缓冲传送到屏幕上。**
+
+```cpp
+glBindFramebuffer(GL_READ_FRAMEBUFFER, multisampledFBO);
+glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+```
+
+![1763301313677](image/note/1763301313677.png)
+
+**但如果我们想要使用多重采样帧缓冲的纹理输出来做像是后期处理这样的事情呢？我们不能直接在片段着色器中使用多重采样的纹理。但我们能做的是将多重采样缓冲位块传送到一个没有使用多重采样纹理附件的FBO中。然后用这个普通的颜色附件来做后期处理，从而达到我们的目的。然而，这也意味着我们需要生成一个新的FBO，作为中介帧缓冲对象，将多重采样缓冲还原为一个能在着色器中使用的普通2D纹理。这个过程的伪代码是这样的：**
+
+```cpp
+unsigned int msFBO = CreateFBOWithMultiSampledAttachments();
+// 使用普通的纹理颜色附件创建一个新的FBO
+...
+glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, screenTexture, 0);
+...
+while(!glfwWindowShouldClose(window))
+{
+    ...
+
+    glBindFramebuffer(msFBO);
+    ClearFrameBuffer();
+    DrawScene();
+    // 将多重采样缓冲还原到中介FBO上
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, msFBO);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, intermediateFBO);
+    glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    // 现在场景是一个2D纹理缓冲，可以将这个图像用来后期处理
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    ClearFramebuffer();
+    glBindTexture(GL_TEXTURE_2D, screenTexture);
+    DrawPostProcessingQuad();  
+
+    ... 
+}
+```
+
+![1763301600297](image/note/1763301600297.png)
+
+> 因为屏幕纹理又变回了一个只有单一采样点的普通纹理，像是**边缘检测**这样的后期处理滤镜会重新导致锯齿。为了补偿这一问题，你可以之后对纹理进行模糊处理，或者想出你自己的抗锯齿算法。
+
+***你可以看到，如果将多重采样与离屏渲染结合起来，我们需要自己负责一些额外的细节。但所有的这些细节都是值得额外的努力的，因为多重采样能够显著提升场景的视觉质量。当然，要注意，如果使用的采样点非常多，启用多重采样会显著降低程序的性能***。在本节写作时，通常采用的是4采样点的MSAA。
+
+
+### 自定义抗锯齿算法(后处理阶段实现)
+
+***将一个多重采样的纹理图像不进行还原直接传入着色器也是可行的(就是不能直接操作的意思,要么转成普通的纹理,要么作为shader的数据来源,要么直接渲染)。GLSL提供了这样的选项，让我们能够对纹理图像的每个子样本进行采样，所以我们可以创建我们自己的抗锯齿算法。在大型的图形应用中通常都会这么做。***
+
+要想获取每个子样本的颜色值，你需要将纹理uniform采样器设置为sampler2DMS，而不是平常使用的sampler2D：
+
+```cpp
+uniform sampler2DMS screenTextureMS;
+......
+vec4 colorSample = texelFetch(screenTextureMS, TexCoords, 3);  // 第4个子样本
+```
+
+
+## 高级光照
+
+
+
+### Blinn-Phong
+
+![1763307214583](image/note/1763307214583.png)
+
+半程向量(Halfway Vector)
+
+![1763307238048](image/note/1763307238048.png)
+
+![1763307280307](image/note/1763307280307.png)
+
+接下来，镜面光分量的实际计算只不过是对表面法线和半程向量进行一次约束点乘(Clamped Dot Product)，让点乘结果不为负，从而获取它们之间夹角的余弦值，之后我们对这个值取反光度次方：
+
+```cpp
+vec3 lightDir   = normalize(lightPos - FragPos);
+vec3 viewDir    = normalize(viewPos - FragPos);
+vec3 halfwayDir = normalize(lightDir + viewDir);
+...
+float spec = pow(max(dot(normal, halfwayDir), 0.0), shininess);
+vec3 specular = lightColor * spec;
+```
+
+***Blinn-Phong与风氏模型唯一的区别就是，Blinn-Phong测量的是法线与半程向量之间的夹角，而风氏模型测量的是观察方向与反射向量间的夹角。***
+
+![1763307829631](image/note/1763307829631.png)
+
+
 
 
 
@@ -2492,6 +2617,18 @@ Early-Z 是一种优化技术，它发生在顶点着色器和片元着色器之
 > 就像“水杯”和“保温杯”：水杯功能多（可以装水、泡茶、当容器），但保温杯在“长时间保温”这件事上更高效。渲染缓冲就是OpenGL为“高效纯输出”场景设计的“保温杯”，无法被纹理完全替代。
 >
 > 试试这个实验：用纹理和渲染缓冲分别作为深度缓冲，渲染一个100万个三角形的场景，对比帧率——你会直观看到渲染缓冲的性能优势。
+
+## 帧缓冲中处理像素,是不是就是在后处理阶段了?
+
+是的，在帧缓冲中处理像素（尤其是对已渲染完成的全屏图像数据进行加工），本质上就属于**后处理阶段**。
+
+具体来说：
+帧缓冲（Framebuffer）是渲染管线的“临时画布”，前序阶段（几何、光栅化）会将渲染结果写入帧缓冲的颜色附件（如纹理或RBO）。当你从帧缓冲中读取这些像素数据，通过Shader进行二次处理（比如抗锯齿、模糊、调色），再将结果写回帧缓冲（或新的帧缓冲）时，这个过程就完全落在**后处理阶段**的范畴内。
+
+简单说：帧缓冲是“存储渲染结果的容器”，而对这个容器里的像素做加工，就是后处理的核心动作。
+
+需要进一步明确“帧缓冲操作”和“后处理阶段”的绑定关系吗？比如举一个“读取帧缓冲纹理做模糊”的具体流程。
+
 
 # TODO
 
